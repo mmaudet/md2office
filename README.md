@@ -114,7 +114,7 @@ Place your DOCX templates in the `templates/` directory. Templates can include:
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/md2office.git
+git clone https://github.com/mmaudet/md2office.git
 cd md2office
 
 # Install dependencies

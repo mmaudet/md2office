@@ -50,10 +50,10 @@ dev = [
 md2office = "md2office.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/YOUR_USERNAME/md2office"
-Documentation = "https://github.com/YOUR_USERNAME/md2office#readme"
-Repository = "https://github.com/YOUR_USERNAME/md2office.git"
-Issues = "https://github.com/YOUR_USERNAME/md2office/issues"
+Homepage = "https://github.com/mmaudet/md2office"
+Documentation = "https://github.com/mmaudet/md2office#readme"
+Repository = "https://github.com/mmaudet/md2office.git"
+Issues = "https://github.com/mmaudet/md2office/issues"
 
 [build-system]
 requires = ["hatchling"]
