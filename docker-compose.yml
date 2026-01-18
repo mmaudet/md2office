@@ -1,0 +1,42 @@
+services:
+  md2office:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./templates:/app/templates:ro
+      - ./config:/app/config:ro
+      - ./output:/app/output
+    environment:
+      - MD2OFFICE_HOST=0.0.0.0
+      - MD2OFFICE_PORT=8080
+      - MD2OFFICE_LOG_LEVEL=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8080/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Development service with hot reload
+  md2office-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./src:/app/src:ro
+      - ./templates:/app/templates:ro
+      - ./config:/app/config:ro
+      - ./output:/app/output
+    environment:
+      - MD2OFFICE_HOST=0.0.0.0
+      - MD2OFFICE_PORT=8080
+      - MD2OFFICE_LOG_LEVEL=debug
+    command: ["uvicorn", "md2office.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+    profiles:
+      - dev

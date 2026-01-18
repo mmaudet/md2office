@@ -1,0 +1,52 @@
+# Style mapping configuration for md2office
+# Maps Markdown elements to Word style names
+
+headings:
+  h1: "Heading 1"
+  h2: "Heading 2"
+  h3: "Heading 3"
+  h4: "Heading 4"
+  h5: "Heading 5"
+  h6: "Heading 6"
+
+paragraph:
+  normal: "Normal"
+  quote: "Quote"
+
+code:
+  inline: "Code Char"
+  block: "Code Block"
+
+list_styles:
+  bullet: "List Bullet"
+  number: "List Number"
+
+table:
+  style: "Table Grid"
+  header_bg: "4472C4"       # Blue background for header
+  header_text: "FFFFFF"     # White text for header
+  alternating_rows: true
+  alt_row_bg: "D9E2F3"      # Light blue for alternating rows
+
+# Admonition/callout styling (GitHub-style alerts)
+admonitions:
+  NOTE:
+    icon: "i"
+    color: "0969DA"         # Blue
+    bg: "DDF4FF"
+  TIP:
+    icon: "tip"
+    color: "1A7F37"         # Green
+    bg: "DCFFE4"
+  IMPORTANT:
+    icon: "!"
+    color: "8250DF"         # Purple
+    bg: "FBEFFF"
+  WARNING:
+    icon: "warn"
+    color: "9A6700"         # Yellow/Orange
+    bg: "FFF8C5"
+  CAUTION:
+    icon: "x"
+    color: "CF222E"         # Red
+    bg: "FFEBE9"

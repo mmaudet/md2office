@@ -1,0 +1,16 @@
+# md2office configuration
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  reload: false
+  workers: 1
+  log_level: "info"
+
+storage:
+  templates_dir: "templates"
+  output_dir: "output"
+  temp_dir: "temp"
+  max_file_size: 10485760  # 10MB
+
+default_template: "default"
