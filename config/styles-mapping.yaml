@@ -10,23 +10,23 @@ headings:
   h6: "Heading 6"
 
 paragraph:
-  normal: "Normal"
+  normal: "Text body"
   quote: "Quote"
 
 code:
-  inline: "Code Char"
-  block: "Code Block"
+  inline: "Code in line"
+  block: "Code"
 
 list_styles:
-  bullet: "List Bullet"
-  number: "List Number"
+  bullet: "List 1"
+  number: "Numbering 1"
 
 table:
   style: "Table Grid"
-  header_bg: "4472C4"       # Blue background for header
+  header_bg: "c00d2d"       # LINAGORA red background for header
   header_text: "FFFFFF"     # White text for header
   alternating_rows: true
-  alt_row_bg: "D9E2F3"      # Light blue for alternating rows
+  alt_row_bg: "F9F9F9"      # Light gray for alternating rows
 
 # Admonition/callout styling (GitHub-style alerts)
 admonitions:

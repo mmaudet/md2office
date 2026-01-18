@@ -1,0 +1,656 @@
+# =============================================================================
+# md2office - Configuration des styles pour le template LINAGORA
+# =============================================================================
+# Ce fichier définit le mapping entre les éléments Markdown et les styles Word
+# définis dans le template LINAGORA Commercial Proposal.
+#
+# Les noms de styles correspondent exactement aux styles définis dans le .docx
+# =============================================================================
+
+# Informations sur le template
+template:
+  name: "LINAGORA Commercial Proposal"
+  version: "1.0"
+  description: "Template pour propositions commerciales LINAGORA"
+  author: "LINAGORA"
+  
+# Charte graphique LINAGORA
+branding:
+  primary_color: "#c00d2d"      # Rouge LINAGORA principal
+  secondary_color: "#8f0a22"    # Rouge foncé
+  accent_color: "#c00000"       # Rouge accent
+  text_color: "#000000"         # Noir
+  muted_color: "#666666"        # Gris
+  link_color: "#0563c1"         # Bleu liens
+  
+  fonts:
+    primary: "Liberation Sans"
+    monospace: "Liberation Mono"
+    fallback: "Arial"
+
+# =============================================================================
+# MAPPING DES TITRES (Headings)
+# =============================================================================
+headings:
+  # Markdown # -> Word Heading 1
+  h1:
+    style_name: "Heading 1"
+    style_id: "1267"
+    font:
+      name: "Liberation Sans"
+      size: 16
+      color: "#c00000"
+      bold: true
+      italic: false
+    spacing:
+      before: 240    # 12pt en twips (1pt = 20 twips)
+      after: 120     # 6pt
+      
+  # Markdown ## -> Word Heading 2  
+  h2:
+    style_name: "Heading 2"
+    style_id: "1269"
+    font:
+      name: "Liberation Sans"
+      size: 15
+      color: "#8f0a22"
+      bold: true
+      italic: true
+    spacing:
+      before: 200
+      after: 100
+      
+  # Markdown ### -> Word Heading 3
+  h3:
+    style_name: "Heading 3"
+    style_id: "1270"
+    font:
+      name: "Liberation Sans"
+      size: 13
+      color: "#000000"
+      bold: true
+      italic: false
+    spacing:
+      before: 160
+      after: 80
+      
+  # Markdown #### -> Word Heading 4
+  h4:
+    style_name: "Heading 4"
+    style_id: "1271"
+    font:
+      name: "Liberation Sans"
+      size: 12
+      color: "#000000"
+      bold: true
+      italic: true
+    spacing:
+      before: 120
+      after: 60
+      
+  # Markdown ##### -> Word Heading 5
+  h5:
+    style_name: "Heading 5"
+    style_id: "1272"
+    font:
+      name: "Liberation Sans"
+      size: 11
+      color: "#000000"
+      bold: true
+      italic: false
+    spacing:
+      before: 100
+      after: 40
+      
+  # Markdown ###### -> Word Heading 6
+  h6:
+    style_name: "Heading 6"
+    style_id: "1273"
+    font:
+      name: "Liberation Sans"
+      size: 11
+      color: "#000000"
+      bold: true
+      italic: false
+    spacing:
+      before: 80
+      after: 40
+
+# =============================================================================
+# MAPPING DES PARAGRAPHES ET TEXTE
+# =============================================================================
+paragraph:
+  # Paragraphe normal
+  normal:
+    style_name: "Text body"
+    style_id: "1255"
+    font:
+      name: "Liberation Sans"
+      size: 12
+      color: "#000000"
+    spacing:
+      before: 0
+      after: 120     # 6pt après chaque paragraphe
+      line: 276      # Interligne 1.15 (240 = simple)
+      
+  # Paragraphe standard (alternative)
+  standard:
+    style_name: "Standard"
+    style_id: "1253"
+    
+  # Pas d'espacement (pour éléments consécutifs)
+  no_spacing:
+    style_name: "No Spacing"
+    style_id: "1235"
+
+# =============================================================================
+# STYLES INLINE (caractères)
+# =============================================================================
+inline:
+  # Markdown **texte** -> Gras
+  bold:
+    style_name: "Strong Emphasis"
+    style_id: "1427"
+    font:
+      bold: true
+      
+  # Markdown *texte* -> Italique
+  italic:
+    style_name: "Emphasis"
+    style_id: "1425"
+    font:
+      italic: true
+      
+  # Markdown `code` -> Code inline
+  code_inline:
+    style_name: "Code in line"
+    style_id: "1405"
+    font:
+      name: "Liberation Mono"
+      
+  # Markdown [texte](url) -> Lien
+  hyperlink:
+    style_name: "Internet link"
+    style_id: "1402"
+    font:
+      color: "#000080"
+      underline: true
+      
+  # Style alternatif pour les liens
+  hyperlink_alt:
+    style_name: "Hyperlink"
+    style_id: "1248"
+    font:
+      color: "#0563c1"
+      underline: true
+
+# =============================================================================
+# BLOCS DE CODE
+# =============================================================================
+code:
+  # Bloc de code générique
+  block:
+    style_name: "Code"
+    style_id: "1291"
+    font:
+      name: "Liberation Mono"
+      size: 9
+    spacing:
+      before: 120
+      after: 120
+    background_color: "#f5f5f5"
+    border:
+      color: "#cccccc"
+      width: 0.5
+      
+  # Code de terminal (commandes shell)
+  terminal:
+    style_name: "Code Terminal"
+    style_id: "1292"
+    font:
+      name: "Liberation Mono"
+      size: 9
+    background_color: "#1e1e1e"
+    font_color: "#d4d4d4"
+    
+  # Code de fichier (configuration, etc.)
+  file:
+    style_name: "Code File"
+    style_id: "1293"
+    font:
+      name: "Liberation Mono"
+      size: 9
+      
+  # Commentaires dans le code
+  comment:
+    style_name: "Code Comment"
+    style_id: "1412"
+    font:
+      color: "#006b6b"
+      italic: true
+      
+  # Variables dans le code
+  variable:
+    style_name: "Code Variable"
+    style_id: "1413"
+    font:
+      bold: true
+
+# =============================================================================
+# LISTES
+# =============================================================================
+lists:
+  # Liste à puces
+  bullet:
+    style_name: "List 1"
+    style_id: "1305"
+    levels:
+      - style_name: "List 1"
+        bullet_char: "•"
+        indent: 360      # 0.25 inch en twips
+      - style_name: "List 2"
+        bullet_char: "◦"
+        indent: 720
+      - style_name: "List 3"
+        bullet_char: "▪"
+        indent: 1080
+      - style_name: "List 4"
+        bullet_char: "▫"
+        indent: 1440
+      - style_name: "List 5"
+        bullet_char: "•"
+        indent: 1800
+        
+  # Liste numérotée
+  numbered:
+    style_name: "Numbering 1"
+    style_id: "1311"
+    levels:
+      - style_name: "Numbering 1"
+        format: "decimal"        # 1, 2, 3...
+        indent: 360
+      - style_name: "Numbering 2"
+        format: "lowerLetter"    # a, b, c...
+        indent: 720
+      - style_name: "Numbering 3"
+        format: "lowerRoman"     # i, ii, iii...
+        indent: 1080
+      - style_name: "Numbering 4"
+        format: "upperLetter"    # A, B, C...
+        indent: 1440
+      - style_name: "Numbering 5"
+        format: "upperRoman"     # I, II, III...
+        indent: 1800
+        
+  # Liste Paragraph (style Word par défaut pour listes)
+  list_paragraph:
+    style_name: "List Paragraph"
+    style_id: "1230"
+
+# =============================================================================
+# TABLEAUX
+# =============================================================================
+tables:
+  # Style de tableau par défaut
+  default:
+    style_name: "Table Grid"
+    style_id: "1088"
+    
+  # Contenu des cellules
+  cell_content:
+    style_name: "Table Contents"
+    style_id: "1262"
+    font:
+      name: "Liberation Sans"
+      size: 10
+      
+  # En-tête de tableau
+  header:
+    style_name: "Table Heading"
+    style_id: "1263"
+    font:
+      name: "Liberation Sans"
+      size: 10
+      bold: true
+    background_color: "#c00d2d"    # Rouge LINAGORA
+    font_color: "#ffffff"          # Texte blanc
+    
+  # Options de formatage
+  formatting:
+    borders:
+      style: "single"
+      color: "#999999"
+      width: 0.5
+    alternating_rows:
+      enabled: true
+      odd_color: "#ffffff"
+      even_color: "#f9f9f9"
+    cell_padding:
+      top: 40       # 2pt
+      bottom: 40
+      left: 80      # 4pt
+      right: 80
+    header_repeat: true    # Répéter l'en-tête sur chaque page
+
+# =============================================================================
+# CITATIONS ET REMARQUES (Admonitions)
+# =============================================================================
+quotes:
+  # Citation simple (blockquote)
+  blockquote:
+    style_name: "Quote"
+    style_id: "1228"
+    font:
+      italic: true
+      color: "#404040"
+    border:
+      left:
+        color: "#c00d2d"
+        width: 3
+    indent:
+      left: 720      # 0.5 inch
+      
+  # Citation intense
+  intense_quote:
+    style_name: "Intense Quote"
+    style_id: "1232"
+    font:
+      italic: true
+      color: "#0f4761"
+
+# =============================================================================
+# ADMONITIONS (Remarques, Avertissements, etc.)
+# =============================================================================
+# Syntaxe supportée:
+#   > [!NOTE] Information
+#   > [!WARNING] Avertissement
+#   > [!TIP] Conseil
+#   > [!IMPORTANT] Important
+#   > [!CAUTION] Danger
+# =============================================================================
+admonitions:
+  enabled: true
+  render_as: "table"        # "table" ou "paragraph"
+  show_title: true
+  show_icon: true
+  
+  # Remarque générique
+  note:
+    style_name: "Remark"
+    style_id: "1343"
+    title: "Note"
+    icon: "ℹ️"
+    border_color: "#2196F3"         # Bleu
+    background_color: "#E3F2FD"
+    title_color: "#1565C0"
+    
+  # Conseil
+  tip:
+    style_name: "Remark"
+    style_id: "1343"
+    title: "Conseil"
+    icon: "💡"
+    border_color: "#4CAF50"         # Vert
+    background_color: "#E8F5E9"
+    title_color: "#2E7D32"
+    
+  # Important
+  important:
+    style_name: "Remark"
+    style_id: "1343"
+    title: "Important"
+    icon: "❗"
+    border_color: "#9C27B0"         # Violet
+    background_color: "#F3E5F5"
+    title_color: "#7B1FA2"
+    
+  # Avertissement
+  warning:
+    style_name: "Warning"
+    style_id: "1344"
+    title: "Attention"
+    icon: "⚠️"
+    border_color: "#FF9800"         # Orange
+    background_color: "#FFF3E0"
+    title_color: "#E65100"
+    
+  # Danger
+  caution:
+    style_name: "Warning"
+    style_id: "1344"
+    title: "Danger"
+    icon: "🛑"
+    border_color: "#F44336"         # Rouge
+    background_color: "#FFEBEE"
+    title_color: "#C62828"
+    
+  # Exemple
+  example:
+    style_name: "Example Contents"
+    style_id: "1376"
+    title: "Exemple"
+    icon: "📋"
+    border_color: "#607D8B"         # Gris
+    background_color: "#ECEFF1"
+    title_color: "#455A64"
+
+# =============================================================================
+# TITRES SPÉCIAUX (Cover Page)
+# =============================================================================
+special:
+  # Titre du document (page de garde)
+  title:
+    style_name: "Title"
+    style_id: "1287"
+    font:
+      name: "Liberation Sans"
+      size: 26
+      color: "#c00d2d"
+      bold: true
+      
+  # Sous-titre du document
+  subtitle:
+    style_name: "Subtitle"
+    style_id: "1288"
+    font:
+      name: "Liberation Sans"
+      size: 18
+      color: "#c00d2d"
+      bold: true
+      italic: true
+      
+  # Titre de partie (pour très longs documents)
+  part_heading:
+    style_name: "Part Heading"
+    style_id: "1348"
+    font:
+      name: "Liberation Sans"
+      size: 26
+      color: "#c00d2d"
+      bold: true
+
+# =============================================================================
+# EN-TÊTE ET PIED DE PAGE
+# =============================================================================
+header_footer:
+  header:
+    style_name: "Header"
+    style_id: "1260"
+    title:
+      style_name: "Title Header"
+      style_id: "1289"
+      font:
+        size: 13
+        bold: true
+    subtitle:
+      style_name: "Subtitle Header"
+      style_id: "1290"
+      font:
+        size: 10
+        
+  footer:
+    style_name: "Footer"
+    style_id: "1261"
+    font:
+      size: 10
+    page_number:
+      style_name: "Page number Footer"
+      style_id: "1379"
+    contact:
+      style_name: "Contact Footer"
+      style_id: "1386"
+      font:
+        size: 9
+        color: "#666666"
+
+# =============================================================================
+# TABLE DES MATIÈRES
+# =============================================================================
+toc:
+  heading:
+    style_name: "Contents Heading"
+    style_id: "1265"
+    
+  levels:
+    - style_name: "Contents 1"
+      style_id: "1268"
+      font:
+        size: 12
+        bold: true
+    - style_name: "Contents 2"
+      style_id: "1278"
+      font:
+        size: 10
+        bold: true
+        italic: true
+    - style_name: "Contents 3"
+      style_id: "1279"
+      font:
+        size: 10
+        bold: true
+    - style_name: "Contents 4"
+      style_id: "1280"
+      font:
+        size: 9
+        bold: true
+        italic: true
+    - style_name: "Contents 5"
+      style_id: "1281"
+      font:
+        size: 9
+        bold: true
+
+# =============================================================================
+# IMAGES ET ILLUSTRATIONS
+# =============================================================================
+images:
+  figure:
+    style_name: "Figure"
+    style_id: "1400"
+    
+  illustration:
+    style_name: "Illustration"
+    style_id: "1364"
+    
+  caption:
+    style_name: "Caption"
+    style_id: "1257"
+    font:
+      size: 10
+      italic: true
+
+# =============================================================================
+# NOTES DE BAS DE PAGE
+# =============================================================================
+footnotes:
+  text:
+    style_name: "Footnote"
+    style_id: "1393"
+    font:
+      size: 9
+      
+  reference:
+    style_name: "Footnote Symbol"
+    style_id: "1414"
+
+# =============================================================================
+# ÉLÉMENTS DE COUVERTURE (Cover Page Variables)
+# =============================================================================
+cover_page:
+  customer_name:
+    style_name: "Customer Name Cover"
+    style_id: "1382"
+    font:
+      size: 11
+      bold: true
+      
+  date:
+    style_name: "Date Cover"
+    style_id: "1366"
+    font:
+      size: 11
+      
+  version:
+    style_name: "Version Cover"
+    style_id: "1367"
+    font:
+      size: 11
+      
+  filename:
+    style_name: "File name Cover"
+    style_id: "1365"
+    font:
+      size: 11
+      
+  project:
+    style_name: "Project Cover"
+    style_id: "1362"
+    font:
+      size: 10
+      bold: true
+      
+  distribution:
+    style_name: "Distribution Cover"
+    style_id: "1380"
+    font:
+      bold: true
+      
+  address:
+    style_name: "Address Cover"
+    style_id: "1358"
+    font:
+      size: 13
+      
+  url:
+    style_name: "URL Cover"
+    style_id: "1359"
+    font:
+      name: "Liberation Mono"
+      
+  phone:
+    style_name: "Phone Cover"
+    style_id: "1360"
+    font:
+      size: 11
+      
+  license:
+    style_name: "License Cover"
+    style_id: "1361"
+    font:
+      size: 11
+      bold: true
+      
+  uid:
+    style_name: "UID Cover"
+    style_id: "1385"
+    font:
+      size: 11
+
+# =============================================================================
+# RÈGLES HORIZONTALES
+# =============================================================================
+horizontal_rule:
+  style_name: "Horizontal Line"
+  style_id: "1353"
+  font:
+    size: 6

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt
 from docx.text.paragraph import Paragraph
 
@@ -82,6 +83,9 @@ class ListBuilder:
         except KeyError:
             pass
 
+        # Force LEFT alignment
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
         # Set indentation based on level
         # Level 0: 0.35 inch (within margins, room for bullet)
         # Level 1+: additional 0.35 inch per level
@@ -113,8 +117,8 @@ class ListBuilder:
             run.italic = span.italic
 
             if span.code:
-                run.font.name = "Consolas"
-                run.font.size = Pt(10)
+                run.font.name = "Liberation Mono"
+                run.font.size = Pt(9)
 
             if span.strikethrough:
                 run.font.strike = True

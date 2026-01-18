@@ -148,8 +148,8 @@ class AdmonitionBuilder:
             run.italic = span.italic
 
             if span.code:
-                run.font.name = "Consolas"
-                run.font.size = Pt(10)
+                run.font.name = "Liberation Mono"
+                run.font.size = Pt(9)
 
             if span.strikethrough:
                 run.font.strike = True

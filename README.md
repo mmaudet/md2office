@@ -1,55 +1,67 @@
 # md2office
 
-Convert Markdown to professional DOCX documents with corporate template support.
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python](https://img.shields.io/badge/Python-3.11+-green.svg)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/Tests-34%20passed-success.svg)](tests/)
+
+**Convert Markdown to professional Microsoft Word (DOCX) documents with corporate template support.**
+
+md2office is a Python-based open source tool that transforms Markdown files into polished Word documents, complete with style mapping, template injection, and support for advanced features like admonitions, tables with merged cells, and clickable hyperlinks.
+
+---
 
 ## Features
 
-- **Markdown to DOCX conversion** with full formatting support
-- **Corporate templates** with style mapping
-- **Variable injection** using Jinja2 syntax (`{{variable}}`)
-- **Admonitions** support (NOTE, WARNING, TIP, etc.)
-- **Tables** with full formatting (borders, headers, alternating rows)
-- **REST API** for integration
-- **CLI** for command-line usage
-- **Docker** support for easy deployment
+- **Full Markdown Support** - Headings, lists, tables, code blocks, blockquotes, links, and more
+- **Corporate Templates** - Use custom DOCX templates with predefined styles
+- **Style Mapping** - Automatic mapping of Markdown elements to Word styles
+- **Cross-Template Compatibility** - Works with different template style naming conventions
+- **Variable Injection** - Jinja2-style `{{variable}}` substitution in documents
+- **GitHub Admonitions** - Support for `[!NOTE]`, `[!WARNING]`, `[!TIP]`, `[!IMPORTANT]`, `[!CAUTION]`
+- **Advanced Tables** - Headers, alternating rows, merged cells (rowspan/colspan)
+- **Clickable Hyperlinks** - Real Word hyperlinks, not just styled text
+- **REST API** - HTTP API for integration into workflows
+- **CLI** - Command-line interface for scripting and automation
+- **Docker Ready** - Containerized deployment option
 
 ## Installation
 
-```bash
-# Using uv (recommended)
-uv sync
-uv run md2office --help
+### Using uv (recommended)
 
-# Or using pip
+```bash
+# Clone the repository
+git clone https://github.com/mmaudet/md2office.git
+cd md2office
+
+# Install dependencies
+uv sync
+
+# Verify installation
+uv run md2office --help
+```
+
+### Using pip
+
+```bash
 pip install md2office
 ```
 
 ## Quick Start
 
-### CLI Usage
+### Command Line
 
 ```bash
 # Basic conversion
-md2office convert input.md -o output.docx
+md2office convert document.md
 
-# With template
-md2office convert input.md --template corporate -o output.docx
+# With a specific template
+md2office convert document.md -t professional -o output.docx
 
-# With variables
-md2office convert input.md -o output.docx --var author="John Doe" --var date="2026-01-18"
-```
-
-### API Usage
-
-```bash
-# Start the server
-uvicorn md2office.main:app --host 0.0.0.0 --port 8080
-
-# Convert a file
-curl -X POST http://localhost:8080/api/v1/convert \
-  -F "file=@input.md" \
-  -F "template=default" \
-  -o output.docx
+# With variable injection
+md2office convert proposal.md -t linagora -o proposal.docx \
+  -v title="Technical Proposal" \
+  -v author="John Doe" \
+  -v date="2026-01-18"
 ```
 
 ### Python API
@@ -60,32 +72,88 @@ from md2office import convert
 # Simple conversion
 convert("input.md", "output.docx")
 
-# With options
+# With template and variables
 convert(
-    "input.md",
-    "output.docx",
-    template="corporate",
-    variables={"author": "John Doe", "date": "2026-01-18"}
+    "proposal.md",
+    "proposal.docx",
+    template="professional",
+    variables={
+        "title": "Technical Proposal",
+        "author": "John Doe",
+        "date": "2026-01-18"
+    }
 )
+```
+
+### REST API
+
+```bash
+# Start the server
+md2office serve --port 8080
+
+# Convert a file
+curl -X POST http://localhost:8080/api/v1/convert \
+  -F "file=@document.md" \
+  -F "template=professional" \
+  -o output.docx
 ```
 
 ## Supported Markdown Features
 
-- Headings (H1-H6)
-- Paragraphs with inline formatting (bold, italic, code, links)
-- Ordered and unordered lists (nested)
-- Code blocks with syntax highlighting
-- Tables with headers
-- Blockquotes
-- Admonitions (`> [!NOTE]`, `> [!WARNING]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!CAUTION]`)
-- Images
-- Horizontal rules
+| Feature | Syntax | Notes |
+|---------|--------|-------|
+| Headings | `# H1` to `###### H6` | Maps to Word Heading styles |
+| Bold | `**text**` | Strong emphasis |
+| Italic | `*text*` | Emphasis |
+| Code inline | `` `code` `` | Monospace font |
+| Strikethrough | `~~text~~` | Strikethrough formatting |
+| Links | `[text](url)` | Clickable hyperlinks |
+| Bullet lists | `- item` | Nested supported |
+| Numbered lists | `1. item` | Nested supported |
+| Code blocks | ` ```language ` | Left-aligned, monospace |
+| Tables | `\| A \| B \|` | Headers, merged cells |
+| Blockquotes | `> quote` | Indented with border |
+| Admonitions | `> [!NOTE]` | Styled callout boxes |
+| Horizontal rules | `---` | Section separator |
+
+## Templates
+
+md2office includes two built-in templates:
+
+| Template | Description |
+|----------|-------------|
+| `professional` | Clean business template with blue accents |
+| `linagora` | LINAGORA corporate template with red branding |
+
+### Using Templates
+
+```bash
+# List available templates
+md2office templates
+
+# Use a specific template
+md2office convert doc.md -t professional
+
+# Add a custom template
+md2office template-add my-company.docx --name corporate
+```
+
+### Creating Custom Templates
+
+1. Create a DOCX document in Word/LibreOffice
+2. Define styles: `Heading 1-6`, `Normal`, `Code`, `Quote`, etc.
+3. Add headers/footers with `{{variable}}` placeholders
+4. Save and add to md2office:
+
+```bash
+md2office template-add my-template.docx --name custom
+```
 
 ## Configuration
 
 ### Style Mapping
 
-Configure how Markdown elements map to Word styles in `config/styles-mapping.yaml`:
+Configure Markdown-to-Word style mappings in `config/styles-mapping.yaml`:
 
 ```yaml
 headings:
@@ -94,43 +162,92 @@ headings:
   h3: "Heading 3"
 
 paragraph:
-  normal: "Normal"
+  normal: "Text body"
+  quote: "Quote"
 
 code:
-  inline: "Code Char"
-  block: "Code Block"
+  inline: "Code in line"
+  block: "Code"
+
+table:
+  header_bg: "c00d2d"    # Header background color
+  header_text: "FFFFFF"  # Header text color
+  alternating_rows: true
 ```
 
-### Templates
+### Cross-Template Compatibility
 
-Place your DOCX templates in the `templates/` directory. Templates can include:
+md2office automatically handles different style naming conventions across templates:
 
-- Predefined styles
-- Headers and footers with variables
-- Cover pages
-- Custom formatting
+| Configuration | Template A | Template B |
+|---------------|-----------|-----------|
+| `code.block: "Code"` | Uses "Code" | Falls back to "Code Block" |
+| `paragraph.normal: "Text body"` | Uses "Text body" | Falls back to "Body Text" |
 
 ## Development
 
 ```bash
-# Clone the repository
+# Clone and setup
 git clone https://github.com/mmaudet/md2office.git
 cd md2office
-
-# Install dependencies
 uv sync
 
 # Run tests
 uv run pytest
 
-# Run linting
+# Run tests with coverage
+uv run pytest --cov=md2office --cov-report=html
+
+# Lint and format
 uv run ruff check .
 uv run ruff format .
 
-# Run the development server
-uv run litestar run --reload
+# Start development server
+md2office serve --reload
 ```
+
+## Project Structure
+
+```
+md2office/
+├── src/md2office/
+│   ├── api/           # REST API routes and models
+│   ├── builder/       # DOCX document construction
+│   ├── core/          # Configuration, converter, exceptions
+│   ├── parser/        # Markdown parsing (mistune-based)
+│   ├── template/      # Template engine and storage
+│   └── utils/         # Helper functions
+├── config/            # Style mappings and configuration
+├── templates/         # DOCX templates
+├── tests/             # Test suite
+└── docs/              # Documentation
+```
+
+## Documentation
+
+- [User Guide](docs/documentation.md) - Complete usage documentation
+- [API Reference](docs/documentation.md#api-rest) - REST API endpoints
+- [Template Guide](docs/documentation.md#création-dun-template-personnalisé) - Creating custom templates
+
+## Contributing
+
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on:
+
+- Reporting bugs
+- Suggesting features
+- Submitting pull requests
+- Code style guidelines
 
 ## License
 
-Apache License 2.0 - see [LICENSE](LICENSE) for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- [python-docx](https://python-docx.readthedocs.io/) - Word document generation
+- [mistune](https://github.com/lepture/mistune) - Markdown parsing
+- [Litestar](https://litestar.dev/) - REST API framework
+
+---
+
+Made with care by the md2office contributors.

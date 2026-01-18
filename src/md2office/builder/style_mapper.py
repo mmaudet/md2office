@@ -11,6 +11,20 @@ from md2office.core.config import StylesConfig
 class StyleMapper:
     """Maps Markdown element types to Word style names."""
 
+    # Alternative style names for cross-template compatibility
+    STYLE_ALTERNATIVES = {
+        "Code": ["Code", "Code Block"],
+        "Code Block": ["Code Block", "Code"],
+        "Code in line": ["Code in line", "Code Char"],
+        "Code Char": ["Code Char", "Code in line"],
+        "Text body": ["Text body", "Body Text", "Normal"],
+        "Body Text": ["Body Text", "Text body", "Normal"],
+        "List 1": ["List 1", "List Bullet", "List Paragraph"],
+        "List Bullet": ["List Bullet", "List 1", "List Paragraph"],
+        "Numbering 1": ["Numbering 1", "List Number", "List Paragraph"],
+        "List Number": ["List Number", "Numbering 1", "List Paragraph"],
+    }
+
     def __init__(self, config: StylesConfig, document: Document) -> None:
         """Initialize style mapper.
 
@@ -33,6 +47,9 @@ class StyleMapper:
     def _get_style(self, name: str, fallback: str = "Normal") -> str:
         """Get style name, falling back if not available.
 
+        Tries the requested style name first, then alternative names
+        for cross-template compatibility, then the fallback.
+
         Args:
             name: Desired style name.
             fallback: Fallback style if not found.
@@ -40,10 +57,20 @@ class StyleMapper:
         Returns:
             Style name to use.
         """
+        # Try the requested name first
         if name in self._available_styles:
             return name
+
+        # Try alternative names
+        alternatives = self.STYLE_ALTERNATIVES.get(name, [])
+        for alt_name in alternatives:
+            if alt_name in self._available_styles:
+                return alt_name
+
+        # Try fallback
         if fallback in self._available_styles:
             return fallback
+
         return "Normal"
 
     def heading_style(self, level: int) -> str:

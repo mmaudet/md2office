@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
@@ -132,6 +133,69 @@ class DocxBuilder:
         document = self.build(elements)
         document.save(stream)
 
+    # Alternative style names for cross-template compatibility
+    STYLE_ALTERNATIVES = {
+        "Code": ["Code", "Code Block"],
+        "Code Block": ["Code Block", "Code"],
+        "Code in line": ["Code in line", "Code Char"],
+        "Code Char": ["Code Char", "Code in line"],
+        "Text body": ["Text body", "Body Text", "Normal"],
+        "Body Text": ["Body Text", "Text body", "Normal"],
+        "List 1": ["List 1", "List Bullet", "List Paragraph"],
+        "List Bullet": ["List Bullet", "List 1", "List Paragraph"],
+        "Numbering 1": ["Numbering 1", "List Number", "List Paragraph"],
+        "List Number": ["List Number", "Numbering 1", "List Paragraph"],
+    }
+
+    def _get_style(self, style_name: str):
+        """Get a style object from the document by name.
+
+        Tries the requested style name first, then falls back to
+        alternative names for cross-template compatibility.
+
+        Args:
+            style_name: Name of the style to find.
+
+        Returns:
+            Style object if found, None otherwise.
+        """
+        assert self._document is not None
+
+        # Get list of names to try (primary + alternatives)
+        names_to_try = self.STYLE_ALTERNATIVES.get(style_name, [style_name])
+        if style_name not in names_to_try:
+            names_to_try = [style_name] + list(names_to_try)
+
+        for name in names_to_try:
+            # First try direct lookup (works for built-in styles)
+            try:
+                return self._document.styles[name]
+            except KeyError:
+                pass
+
+            # If direct lookup fails, iterate through all styles
+            for style in self._document.styles:
+                if style.name == name:
+                    return style
+
+        return None
+
+    def _apply_style(self, paragraph, style_name: str) -> bool:
+        """Apply a style to a paragraph, using robust lookup.
+
+        Args:
+            paragraph: Word paragraph object.
+            style_name: Name of the style to apply.
+
+        Returns:
+            True if style was applied, False otherwise.
+        """
+        style = self._get_style(style_name)
+        if style:
+            paragraph.style = style
+            return True
+        return False
+
     def _build_element(self, element: DocxElement) -> None:
         """Build a single element and add to document.
 
@@ -165,14 +229,9 @@ class DocxBuilder:
         assert self._document is not None
         assert self._style_mapper is not None
 
-        style = self._style_mapper.heading_style(heading.level)
+        style_name = self._style_mapper.heading_style(heading.level)
         paragraph = self._document.add_paragraph()
-
-        try:
-            paragraph.style = style
-        except KeyError:
-            pass  # Style not found, use default
-
+        self._apply_style(paragraph, style_name)
         self._add_text_spans(paragraph, heading.content)
 
     def _build_paragraph(self, para: DocxParagraph) -> None:
@@ -180,32 +239,42 @@ class DocxBuilder:
         assert self._document is not None
         assert self._style_mapper is not None
 
-        style = self._style_mapper.paragraph_style("normal")
+        style_name = self._style_mapper.paragraph_style("normal")
         paragraph = self._document.add_paragraph()
+        self._apply_style(paragraph, style_name)
 
-        try:
-            paragraph.style = style
-        except KeyError:
-            pass
+        # Force LEFT alignment for body text
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
         self._add_text_spans(paragraph, para.content)
 
     def _build_code_block(self, code_block: DocxCodeBlock) -> None:
-        """Build a code block element."""
+        """Build a code block element.
+
+        Each line of code is rendered as a separate paragraph with
+        the Code style and forced LEFT alignment.
+        """
         assert self._document is not None
         assert self._style_mapper is not None
 
-        style = self._style_mapper.code_style(block=True)
-        paragraph = self._document.add_paragraph()
+        style_name = self._style_mapper.code_style(block=True)
+        lines = code_block.code.split("\n")
 
-        try:
-            paragraph.style = style
-        except KeyError:
-            pass
+        for line in lines:
+            paragraph = self._document.add_paragraph()
+            self._apply_style(paragraph, style_name)
 
-        run = paragraph.add_run(code_block.code)
-        run.font.name = "Consolas"
-        run.font.size = Pt(10)
+            # Force LEFT alignment (override any style setting)
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            # Remove extra spacing between code lines
+            paragraph.paragraph_format.space_before = Pt(0)
+            paragraph.paragraph_format.space_after = Pt(0)
+
+            # Use non-breaking space for empty lines to preserve them
+            text = line if line else "\u00A0"
+            run = paragraph.add_run(text)
+            run.font.name = "Liberation Mono"
+            run.font.size = Pt(9)
 
     def _build_blockquote(self, blockquote: DocxBlockquote) -> None:
         """Build a blockquote element."""
@@ -214,13 +283,9 @@ class DocxBuilder:
 
         for child in blockquote.children:
             if isinstance(child, DocxParagraph):
-                style = self._style_mapper.paragraph_style("quote")
+                style_name = self._style_mapper.paragraph_style("quote")
                 paragraph = self._document.add_paragraph()
-
-                try:
-                    paragraph.style = style
-                except KeyError:
-                    pass
+                self._apply_style(paragraph, style_name)
 
                 # Add indentation for quote
                 paragraph.paragraph_format.left_indent = Inches(0.5)
@@ -299,8 +364,8 @@ class DocxBuilder:
                 run.italic = span.italic
 
                 if span.code:
-                    run.font.name = "Consolas"
-                    run.font.size = Pt(10)
+                    run.font.name = "Liberation Mono"
+                    run.font.size = Pt(9)
 
                 if span.strikethrough:
                     run.font.strike = True
