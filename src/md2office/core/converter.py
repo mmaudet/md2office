@@ -8,7 +8,6 @@ from typing import Any, BinaryIO
 
 from md2office.builder.docx_builder import DocxBuilder
 from md2office.core.config import StylesConfig, get_config, load_styles_mapping
-from md2office.core.exceptions import Md2OfficeError
 from md2office.parser.markdown_parser import MarkdownParser
 from md2office.template.engine import TemplateEngine
 from md2office.template.storage import TemplateStorage

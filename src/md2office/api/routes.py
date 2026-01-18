@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from io import BytesIO
 from typing import Any
 
-from litestar import Controller, Response, Router, get, post, delete
+from litestar import Controller, Response, Router, delete, get, post
 from litestar.datastructures import UploadFile
 from litestar.enums import RequestEncodingType
 from litestar.params import Body
-from litestar.response import Stream
 from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST
 
 from md2office import __version__
@@ -247,7 +245,7 @@ class TemplateController(Controller):
                 status_code=HTTP_400_BAD_REQUEST,
             )
 
-    @delete("/{name:str}")
+    @delete("/{name:str}", status_code=HTTP_200_OK)
     async def delete_template(self, name: str) -> Response:
         """Delete a template.
 

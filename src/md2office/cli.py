@@ -25,19 +25,19 @@ def convert(
     input_file: Annotated[Path, cyclopts.Parameter(help="Markdown file to convert")],
     output: Annotated[
         Path | None,
-        cyclopts.Parameter("--output", "-o", help="Output DOCX file path"),
+        cyclopts.Parameter(name=["--output", "-o"], help="Output DOCX file path"),
     ] = None,
     template: Annotated[
         str | None,
-        cyclopts.Parameter("--template", "-t", help="Template name to use"),
+        cyclopts.Parameter(name=["--template", "-t"], help="Template name to use"),
     ] = None,
     template_path: Annotated[
         Path | None,
-        cyclopts.Parameter("--template-path", help="Direct path to template file"),
+        cyclopts.Parameter(name="--template-path", help="Direct path to template file"),
     ] = None,
     var: Annotated[
         list[str] | None,
-        cyclopts.Parameter("--var", "-v", help="Variable in key=value format"),
+        cyclopts.Parameter(name=["--var", "-v"], help="Variable in key=value format"),
     ] = None,
 ) -> None:
     """Convert a Markdown file to DOCX.
@@ -107,11 +107,11 @@ def template_add(
     source: Annotated[Path, cyclopts.Parameter(help="Path to DOCX template file")],
     name: Annotated[
         str | None,
-        cyclopts.Parameter("--name", "-n", help="Name for the template"),
+        cyclopts.Parameter(name=["--name", "-n"], help="Name for the template"),
     ] = None,
     overwrite: Annotated[
         bool,
-        cyclopts.Parameter("--overwrite", help="Overwrite existing template"),
+        cyclopts.Parameter(name="--overwrite", help="Overwrite existing template"),
     ] = False,
 ) -> None:
     """Add a template to the template storage.
@@ -175,15 +175,15 @@ def init() -> None:
 def serve(
     host: Annotated[
         str,
-        cyclopts.Parameter("--host", "-h", help="Host to bind to"),
+        cyclopts.Parameter(name=["--host", "-h"], help="Host to bind to"),
     ] = "0.0.0.0",
     port: Annotated[
         int,
-        cyclopts.Parameter("--port", "-p", help="Port to listen on"),
+        cyclopts.Parameter(name=["--port", "-p"], help="Port to listen on"),
     ] = 8080,
     reload: Annotated[
         bool,
-        cyclopts.Parameter("--reload", help="Enable auto-reload for development"),
+        cyclopts.Parameter(name="--reload", help="Enable auto-reload for development"),
     ] = False,
 ) -> None:
     """Start the API server.
