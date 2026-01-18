@@ -6,8 +6,6 @@ md2office est un outil open source permettant de convertir des fichiers Markdown
 
 *[English version available](README.md)*
 
----
-
 ## Table des matières
 
 1. [Installation](#installation)
@@ -21,8 +19,6 @@ md2office est un outil open source permettant de convertir des fichiers Markdown
 9. [Configuration Avancée](#configuration-avancée)
 10. [Dépannage](#dépannage)
 11. [Support](#support)
-
----
 
 ## Installation
 
@@ -45,8 +41,6 @@ uv run md2office --help
 ```bash
 pip install md2office
 ```
-
----
 
 ## Utilisation Rapide
 
@@ -86,8 +80,6 @@ convert(
     }
 )
 ```
-
----
 
 ## Balises Markdown Supportées
 
@@ -274,7 +266,7 @@ md2office supporte les admonitions au format GitHub, rendues sous forme de table
 
 ### Règles horizontales
 
-Les séparateurs horizontaux (`---`, `***`, ou `___`) créent une ligne de démarcation.
+Les séparateurs horizontaux (`---`, `***`, ou `___`) créent une ligne de démarcation :
 
 ---
 
@@ -283,8 +275,6 @@ Les séparateurs horizontaux (`---`, `***`, ou `___`) créent une ligne de déma
 Les liens sont rendus comme de vrais hyperliens cliquables dans le document Word, avec le style standard (bleu souligné). Ils fonctionnent dans les paragraphes ET dans les tableaux.
 
 Visitez le [dépôt GitHub](https://github.com/mmaudet/md2office) pour plus d'informations.
-
----
 
 ## Templates Disponibles
 
@@ -312,8 +302,6 @@ md2office template-add mon-template.docx --name corporate
 md2office template-remove corporate
 ```
 
----
-
 ## Mapping des Styles
 
 md2office utilise un système de mapping entre les éléments Markdown et les styles Word. Comprendre ce mapping est essentiel pour créer des templates personnalisés.
@@ -339,8 +327,6 @@ md2office utilise un système de mapping entre les éléments Markdown et les st
 
 Le formatage inline (gras, italique, etc.) est appliqué directement aux caractères via les propriétés de police Word, indépendamment du style de paragraphe.
 
----
-
 ## Compatibilité Multi-Templates
 
 md2office gère automatiquement les différences de nommage de styles entre templates grâce à un système de fallback intelligent.
@@ -365,8 +351,6 @@ Avec la configuration `code.block: "Code"` :
 - **Template Professional** : Fallback vers "Code Block" (existe)
 
 Cette compatibilité permet d'utiliser un seul fichier de configuration pour plusieurs templates.
-
----
 
 ## Création d'un Template Personnalisé
 
@@ -426,8 +410,6 @@ Votre template doit inclure au minimum ces styles :
 - Bordure gauche
 - Retrait : 0.5"
 
----
-
 ## Variables de Template
 
 md2office supporte l'injection de variables dans les templates via la syntaxe Jinja2.
@@ -474,8 +456,6 @@ md2office convert doc.md \
 | `{{project}}` | Corps | Nom du projet |
 | `{{version}}` | Pied de page | Version du document |
 | `{{classification}}` | Pied de page | Classification (Confidentiel, Public, etc.) |
-
----
 
 ## API REST
 
@@ -535,8 +515,6 @@ curl -X DELETE http://localhost:8080/api/v1/templates/corporate
 ```bash
 curl http://localhost:8080/api/v1/health
 ```
-
----
 
 ## Configuration Avancée
 
@@ -601,8 +579,6 @@ admonitions:
     bg: "FFEBE9"
 ```
 
----
-
 ## Dépannage
 
 ### Les styles ne s'appliquent pas
@@ -638,8 +614,6 @@ admonitions:
 
 **Solution :** Ce problème a été corrigé dans la version 0.1.0 en supprimant les marges de cellule et en définissant l'espacement des paragraphes à 0.
 
----
-
 ## Support
 
 | Ressource | Lien |
@@ -647,8 +621,6 @@ admonitions:
 | GitHub Issues | [github.com/mmaudet/md2office/issues](https://github.com/mmaudet/md2office/issues) |
 | Documentation | [github.com/mmaudet/md2office](https://github.com/mmaudet/md2office) |
 | Guide de contribution | [CONTRIBUTING.md](../CONTRIBUTING.md) |
-
----
 
 ## Licence
 

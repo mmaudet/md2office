@@ -160,7 +160,12 @@ class DocxRenderer(mistune.BaseRenderer):
         spans = self._flatten_inline(children)
         attrs = token.get("attrs", {})
         level = attrs.get("level", 1)
-        return DocxHeading(level=level, content=spans)
+
+        # Generate anchor slug from heading text (like GitHub/Markdown does)
+        text = "".join(span.text for span in spans)
+        anchor = self._generate_anchor(text)
+
+        return DocxHeading(level=level, content=spans, anchor=anchor)
 
     def blank_line(self, token: dict, state: Any) -> None:
         """Blank line - ignored."""
@@ -339,3 +344,36 @@ class DocxRenderer(mistune.BaseRenderer):
                 else:
                     rows.append(child)
         return rows
+
+    def _generate_anchor(self, text: str) -> str:
+        """Generate a URL-safe anchor slug from heading text.
+
+        Follows GitHub-style anchor generation:
+        - Convert to lowercase
+        - Replace spaces with hyphens
+        - Remove special characters except hyphens and underscores
+        - Remove accents from characters
+
+        Args:
+            text: Heading text.
+
+        Returns:
+            Anchor slug suitable for bookmarks.
+        """
+        import unicodedata
+
+        # Normalize unicode and remove accents
+        normalized = unicodedata.normalize("NFD", text)
+        ascii_text = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+
+        # Convert to lowercase
+        slug = ascii_text.lower()
+
+        # Replace spaces and special chars with hyphens
+        slug = re.sub(r"[^\w\s-]", "", slug)
+        slug = re.sub(r"[\s_]+", "-", slug)
+
+        # Remove leading/trailing hyphens
+        slug = slug.strip("-")
+
+        return slug or "heading"

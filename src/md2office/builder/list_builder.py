@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 from docx.text.paragraph import Paragraph
 
@@ -112,20 +114,98 @@ class ListBuilder:
             spans: List of text spans to add.
         """
         for span in spans:
-            run = paragraph.add_run(span.text)
-            run.bold = span.bold
-            run.italic = span.italic
-
-            if span.code:
-                run.font.name = "Liberation Mono"
-                run.font.size = Pt(9)
-
-            if span.strikethrough:
-                run.font.strike = True
-
             if span.link:
-                # Word doesn't support hyperlinks directly in runs
-                # We'll add the URL in parentheses for now
-                # A more complete implementation would use oxml
-                run.underline = True
+                self._add_hyperlink(paragraph, span)
+            else:
+                run = paragraph.add_run(span.text)
+                run.bold = span.bold
+                run.italic = span.italic
+
+                if span.code:
+                    run.font.name = "Liberation Mono"
+                    run.font.size = Pt(9)
+
+                if span.strikethrough:
+                    run.font.strike = True
+
+    def _add_hyperlink(self, paragraph: Paragraph, span: TextSpan) -> None:
+        """Add a clickable hyperlink to a paragraph.
+
+        Handles both external links (http://, https://, etc.) and
+        internal links (starting with #) that point to bookmarks.
+
+        Args:
+            paragraph: Word paragraph.
+            span: TextSpan with link URL.
+        """
+        # Create the hyperlink element
+        hyperlink = OxmlElement("w:hyperlink")
+
+        # Check if this is an internal link (bookmark reference)
+        if span.link and span.link.startswith("#"):
+            # Internal link - use w:anchor attribute
+            anchor_name = span.link[1:]  # Remove the leading #
+            hyperlink.set(qn("w:anchor"), anchor_name)
+        else:
+            # External link - use r:id relationship
+            part = paragraph.part
+            r_id = part.relate_to(
+                span.link,
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                is_external=True,
+            )
+            hyperlink.set(qn("r:id"), r_id)
+
+        # Create the run element inside the hyperlink
+        new_run = OxmlElement("w:r")
+
+        # Add run properties
+        rPr = OxmlElement("w:rPr")
+
+        # Bold
+        if span.bold:
+            bold_elem = OxmlElement("w:b")
+            rPr.append(bold_elem)
+
+        # Italic
+        if span.italic:
+            italic_elem = OxmlElement("w:i")
+            rPr.append(italic_elem)
+
+        # Underline (standard for hyperlinks)
+        underline = OxmlElement("w:u")
+        underline.set(qn("w:val"), "single")
+        rPr.append(underline)
+
+        # Blue color (standard for hyperlinks)
+        color = OxmlElement("w:color")
+        color.set(qn("w:val"), "0563C1")
+        rPr.append(color)
+
+        # Code formatting
+        if span.code:
+            font = OxmlElement("w:rFonts")
+            font.set(qn("w:ascii"), "Liberation Mono")
+            font.set(qn("w:hAnsi"), "Liberation Mono")
+            rPr.append(font)
+            size = OxmlElement("w:sz")
+            size.set(qn("w:val"), "18")  # 9pt = 18 half-points
+            rPr.append(size)
+
+        # Strikethrough
+        if span.strikethrough:
+            strike = OxmlElement("w:strike")
+            rPr.append(strike)
+
+        new_run.append(rPr)
+
+        # Add the text
+        text_elem = OxmlElement("w:t")
+        text_elem.text = span.text
+        new_run.append(text_elem)
+
+        hyperlink.append(new_run)
+
+        # Append hyperlink to paragraph
+        paragraph._p.append(hyperlink)
 

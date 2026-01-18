@@ -6,8 +6,6 @@ md2office is an open source tool for converting Markdown files to professional W
 
 *[Version française disponible](README.fr.md)*
 
----
-
 ## Table of Contents
 
 1. [Installation](#installation)
@@ -21,8 +19,6 @@ md2office is an open source tool for converting Markdown files to professional W
 9. [Advanced Configuration](#advanced-configuration)
 10. [Troubleshooting](#troubleshooting)
 11. [Support](#support)
-
----
 
 ## Installation
 
@@ -45,8 +41,6 @@ uv run md2office --help
 ```bash
 pip install md2office
 ```
-
----
 
 ## Quick Start
 
@@ -86,8 +80,6 @@ convert(
     }
 )
 ```
-
----
 
 ## Supported Markdown Features
 
@@ -274,7 +266,7 @@ md2office supports GitHub-style admonitions, rendered as colored tables with ico
 
 ### Horizontal Rules
 
-Horizontal separators (`---`, `***`, or `___`) create a dividing line.
+Horizontal separators (`---`, `***`, or `___`) create a dividing line:
 
 ---
 
@@ -283,8 +275,6 @@ Horizontal separators (`---`, `***`, or `___`) create a dividing line.
 Links are rendered as real clickable hyperlinks in the Word document, with standard styling (blue underlined). They work in paragraphs AND in tables.
 
 Visit the [GitHub repository](https://github.com/mmaudet/md2office) for more information.
-
----
 
 ## Available Templates
 
@@ -312,8 +302,6 @@ md2office template-add my-template.docx --name corporate
 md2office template-remove corporate
 ```
 
----
-
 ## Style Mapping
 
 md2office uses a mapping system between Markdown elements and Word styles. Understanding this mapping is essential for creating custom templates.
@@ -339,8 +327,6 @@ md2office uses a mapping system between Markdown elements and Word styles. Under
 
 Inline formatting (bold, italic, etc.) is applied directly to characters via Word font properties, independent of paragraph style.
 
----
-
 ## Cross-Template Compatibility
 
 md2office automatically handles style naming differences between templates through an intelligent fallback system.
@@ -365,8 +351,6 @@ With configuration `code.block: "Code"`:
 - **Professional Template**: Falls back to "Code Block" (exists)
 
 This compatibility allows using a single configuration file for multiple templates.
-
----
 
 ## Creating Custom Templates
 
@@ -426,8 +410,6 @@ Your template should include at minimum these styles:
 - Left border
 - Indent: 0.5"
 
----
-
 ## Template Variables
 
 md2office supports variable injection in templates via Jinja2 syntax.
@@ -474,8 +456,6 @@ md2office convert doc.md \
 | `{{project}}` | Body | Project name |
 | `{{version}}` | Footer | Document version |
 | `{{classification}}` | Footer | Classification (Confidential, Public, etc.) |
-
----
 
 ## REST API
 
@@ -535,8 +515,6 @@ curl -X DELETE http://localhost:8080/api/v1/templates/corporate
 ```bash
 curl http://localhost:8080/api/v1/health
 ```
-
----
 
 ## Advanced Configuration
 
@@ -601,8 +579,6 @@ admonitions:
     bg: "FFEBE9"
 ```
 
----
-
 ## Troubleshooting
 
 ### Styles Not Applied
@@ -638,8 +614,6 @@ admonitions:
 
 **Solution:** This issue was fixed in version 0.1.0 by removing cell margins and setting paragraph spacing to 0.
 
----
-
 ## Support
 
 | Resource | Link |
@@ -647,8 +621,6 @@ admonitions:
 | GitHub Issues | [github.com/mmaudet/md2office/issues](https://github.com/mmaudet/md2office/issues) |
 | Documentation | [github.com/mmaudet/md2office](https://github.com/mmaudet/md2office) |
 | Contributing Guide | [CONTRIBUTING.md](../CONTRIBUTING.md) |
-
----
 
 ## License
 

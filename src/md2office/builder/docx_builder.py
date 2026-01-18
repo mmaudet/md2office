@@ -57,11 +57,15 @@ class DocxBuilder:
         self._table_builder: TableBuilder | None = None
         self._list_builder: ListBuilder | None = None
         self._admonition_builder: AdmonitionBuilder | None = None
+        self._bookmark_id: int = 0  # Counter for unique bookmark IDs
+        self._bookmarks: dict[str, int] = {}  # Map anchor names to bookmark IDs
 
     def _init_document(self) -> None:
         """Initialize the Word document and helpers."""
         if self._template_path and self._template_path.exists():
             self._document = Document(self._template_path)
+            # Clear template body content while preserving headers, footers, and styles
+            self._clear_body_content()
         else:
             self._document = Document()
 
@@ -69,6 +73,63 @@ class DocxBuilder:
         self._table_builder = TableBuilder(self._document, self._style_mapper)
         self._list_builder = ListBuilder(self._document, self._style_mapper)
         self._admonition_builder = AdmonitionBuilder(self._document, self._style_mapper)
+
+    def _clear_body_content(self) -> None:
+        """Clear all body content from a template document.
+
+        This removes paragraphs and tables from the document body while
+        preserving headers, footers, styles, and section properties.
+        """
+        assert self._document is not None
+
+        # Remove all paragraphs from body
+        body = self._document.element.body
+        for child in list(body):
+            # Keep sectPr (section properties) at the end
+            if child.tag.endswith("}sectPr"):
+                continue
+            body.remove(child)
+
+    def _add_bookmark_start(self, paragraph, anchor: str) -> None:
+        """Add a bookmark start element to a paragraph.
+
+        Args:
+            paragraph: Word paragraph.
+            anchor: Bookmark name/anchor.
+        """
+        # Get or create bookmark ID
+        if anchor not in self._bookmarks:
+            self._bookmarks[anchor] = self._bookmark_id
+            self._bookmark_id += 1
+
+        bookmark_id = self._bookmarks[anchor]
+
+        # Create bookmarkStart element
+        bookmark_start = OxmlElement("w:bookmarkStart")
+        bookmark_start.set(qn("w:id"), str(bookmark_id))
+        bookmark_start.set(qn("w:name"), anchor)
+
+        # Insert at the beginning of the paragraph
+        paragraph._p.insert(0, bookmark_start)
+
+    def _add_bookmark_end(self, paragraph, anchor: str) -> None:
+        """Add a bookmark end element to a paragraph.
+
+        Args:
+            paragraph: Word paragraph.
+            anchor: Bookmark name/anchor.
+        """
+        if anchor not in self._bookmarks:
+            return
+
+        bookmark_id = self._bookmarks[anchor]
+
+        # Create bookmarkEnd element
+        bookmark_end = OxmlElement("w:bookmarkEnd")
+        bookmark_end.set(qn("w:id"), str(bookmark_id))
+
+        # Append at the end of the paragraph
+        paragraph._p.append(bookmark_end)
 
     def build(self, elements: ASTDocument) -> Document:
         """Build a Word document from AST elements.
@@ -232,7 +293,19 @@ class DocxBuilder:
         style_name = self._style_mapper.heading_style(heading.level)
         paragraph = self._document.add_paragraph()
         self._apply_style(paragraph, style_name)
+
+        # Add bookmark for internal links if anchor is provided
+        if heading.anchor:
+            self._add_bookmark_start(paragraph, heading.anchor)
+
         self._add_text_spans(paragraph, heading.content)
+
+        if heading.anchor:
+            self._add_bookmark_end(paragraph, heading.anchor)
+
+        # Add extra space after Heading 3 for better visual separation
+        if heading.level == 3:
+            paragraph.paragraph_format.space_after = Pt(8)
 
     def _build_paragraph(self, para: DocxParagraph) -> None:
         """Build a paragraph element."""
@@ -259,16 +332,26 @@ class DocxBuilder:
 
         style_name = self._style_mapper.code_style(block=True)
         lines = code_block.code.split("\n")
+        total_lines = len(lines)
 
-        for line in lines:
+        for i, line in enumerate(lines):
             paragraph = self._document.add_paragraph()
             self._apply_style(paragraph, style_name)
 
             # Force LEFT alignment (override any style setting)
             paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-            # Remove extra spacing between code lines
-            paragraph.paragraph_format.space_before = Pt(0)
-            paragraph.paragraph_format.space_after = Pt(0)
+
+            # Add spacing before first line and after last line
+            # Remove spacing between code lines for compact rendering
+            if i == 0:
+                paragraph.paragraph_format.space_before = Pt(6)
+            else:
+                paragraph.paragraph_format.space_before = Pt(0)
+
+            if i == total_lines - 1:
+                paragraph.paragraph_format.space_after = Pt(6)
+            else:
+                paragraph.paragraph_format.space_after = Pt(0)
 
             # Use non-breaking space for empty lines to preserve them
             text = line if line else "\u00A0"
@@ -373,23 +456,32 @@ class DocxBuilder:
     def _add_hyperlink(self, paragraph, span: TextSpan) -> None:
         """Add a clickable hyperlink to a paragraph.
 
+        Handles both external links (http://, https://, etc.) and
+        internal links (starting with #) that point to bookmarks.
+
         Args:
             paragraph: Word paragraph.
             span: TextSpan with link URL.
         """
         assert self._document is not None
 
-        # Get the document part to add the relationship
-        part = paragraph.part
-        r_id = part.relate_to(
-            span.link,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
-            is_external=True,
-        )
-
         # Create the hyperlink element
         hyperlink = OxmlElement("w:hyperlink")
-        hyperlink.set(qn("r:id"), r_id)
+
+        # Check if this is an internal link (bookmark reference)
+        if span.link and span.link.startswith("#"):
+            # Internal link - use w:anchor attribute
+            anchor_name = span.link[1:]  # Remove the leading #
+            hyperlink.set(qn("w:anchor"), anchor_name)
+        else:
+            # External link - use r:id relationship
+            part = paragraph.part
+            r_id = part.relate_to(
+                span.link,
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                is_external=True,
+            )
+            hyperlink.set(qn("r:id"), r_id)
 
         # Create the run element inside the hyperlink
         new_run = OxmlElement("w:r")

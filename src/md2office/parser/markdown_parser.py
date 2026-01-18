@@ -110,7 +110,12 @@ class MarkdownParser:
         level = attrs.get("level", 1)
         children = token.get("children", [])
         content = self._process_inline_tokens(children)
-        return DocxHeading(level=level, content=content)
+
+        # Generate anchor slug from heading text for internal links
+        text = "".join(span.text for span in content)
+        anchor = self._generate_anchor(text)
+
+        return DocxHeading(level=level, content=content, anchor=anchor)
 
     def _process_paragraph(self, token: dict) -> DocxParagraph:
         """Process a paragraph token."""
@@ -375,6 +380,39 @@ class MarkdownParser:
             return TextSpan(text="\n")
         else:
             return None
+
+    def _generate_anchor(self, text: str) -> str:
+        """Generate a URL-safe anchor slug from heading text.
+
+        Follows GitHub-style anchor generation:
+        - Convert to lowercase
+        - Replace spaces with hyphens
+        - Remove special characters except hyphens and underscores
+        - Remove accents from characters
+
+        Args:
+            text: Heading text.
+
+        Returns:
+            Anchor slug suitable for bookmarks.
+        """
+        import unicodedata
+
+        # Normalize unicode and remove accents
+        normalized = unicodedata.normalize("NFD", text)
+        ascii_text = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+
+        # Convert to lowercase
+        slug = ascii_text.lower()
+
+        # Replace spaces and special chars with hyphens
+        slug = re.sub(r"[^\w\s-]", "", slug)
+        slug = re.sub(r"[\s_]+", "-", slug)
+
+        # Remove leading/trailing hyphens
+        slug = slug.strip("-")
+
+        return slug or "heading"
 
     def parse_file(self, filepath: str) -> Document:
         """Parse Markdown from a file.

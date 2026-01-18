@@ -29,6 +29,7 @@ class DocxHeading(DocxElement, frozen=True, tag="heading"):
 
     level: int
     content: list[TextSpan]
+    anchor: str | None = None  # Bookmark anchor for internal links
 
 
 class DocxParagraph(DocxElement, frozen=True, tag="paragraph"):
