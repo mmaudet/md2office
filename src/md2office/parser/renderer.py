@@ -8,7 +8,6 @@ from typing import Any
 import mistune
 
 from md2office.parser.elements import (
-    AdmonitionType,
     DocxAdmonition,
     DocxBlockquote,
     DocxCodeBlock,
@@ -26,7 +25,9 @@ from md2office.parser.elements import (
 )
 
 # Pattern for GitHub-style admonitions: > [!NOTE], > [!WARNING], etc.
-ADMONITION_PATTERN = re.compile(r"^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$", re.IGNORECASE)
+ADMONITION_PATTERN = re.compile(
+    r"^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$", re.IGNORECASE
+)
 
 
 class DocxRenderer(mistune.BaseRenderer):
@@ -36,18 +37,30 @@ class DocxRenderer(mistune.BaseRenderer):
 
     def __init__(self) -> None:
         super().__init__()
-        self._inline_stack: list[TextSpan] = []
+
+    def _render_children(self, token: dict, state: Any) -> list:
+        """Render children tokens."""
+        children = token.get("children", [])
+        result = []
+        for child in children:
+            func = self._get_method(child["type"])
+            rendered = func(child, state)
+            if rendered is not None:
+                result.append(rendered)
+        return result
 
     # -------------------------------------------------------------------------
-    # Inline elements
+    # Inline elements - receive token dict
     # -------------------------------------------------------------------------
 
-    def text(self, text: str) -> TextSpan:
+    def text(self, token: dict, state: Any) -> TextSpan:
         """Plain text."""
-        return TextSpan(text=text)
+        return TextSpan(text=token.get("raw", ""))
 
-    def emphasis(self, children: list[TextSpan]) -> list[TextSpan]:
+    def emphasis(self, token: dict, state: Any) -> list[TextSpan]:
         """Italic text (*text* or _text_)."""
+        children = self._render_children(token, state)
+        spans = self._flatten_inline(children)
         return [
             TextSpan(
                 text=span.text,
@@ -57,11 +70,13 @@ class DocxRenderer(mistune.BaseRenderer):
                 strikethrough=span.strikethrough,
                 link=span.link,
             )
-            for span in children
+            for span in spans
         ]
 
-    def strong(self, children: list[TextSpan]) -> list[TextSpan]:
+    def strong(self, token: dict, state: Any) -> list[TextSpan]:
         """Bold text (**text** or __text__)."""
+        children = self._render_children(token, state)
+        spans = self._flatten_inline(children)
         return [
             TextSpan(
                 text=span.text,
@@ -71,15 +86,17 @@ class DocxRenderer(mistune.BaseRenderer):
                 strikethrough=span.strikethrough,
                 link=span.link,
             )
-            for span in children
+            for span in spans
         ]
 
-    def codespan(self, text: str) -> TextSpan:
+    def codespan(self, token: dict, state: Any) -> TextSpan:
         """Inline code (`code`)."""
-        return TextSpan(text=text, code=True)
+        return TextSpan(text=token.get("raw", ""), code=True)
 
-    def strikethrough(self, children: list[TextSpan]) -> list[TextSpan]:
+    def strikethrough(self, token: dict, state: Any) -> list[TextSpan]:
         """Strikethrough text (~~text~~)."""
+        children = self._render_children(token, state)
+        spans = self._flatten_inline(children)
         return [
             TextSpan(
                 text=span.text,
@@ -89,11 +106,15 @@ class DocxRenderer(mistune.BaseRenderer):
                 strikethrough=True,
                 link=span.link,
             )
-            for span in children
+            for span in spans
         ]
 
-    def link(self, children: list[TextSpan], url: str, title: str | None = None) -> list[TextSpan]:
+    def link(self, token: dict, state: Any) -> list[TextSpan]:
         """Hyperlink [text](url)."""
+        children = self._render_children(token, state)
+        spans = self._flatten_inline(children)
+        attrs = token.get("attrs", {})
+        url = attrs.get("url", "") or token.get("link", "")
         return [
             TextSpan(
                 text=span.text,
@@ -103,50 +124,63 @@ class DocxRenderer(mistune.BaseRenderer):
                 strikethrough=span.strikethrough,
                 link=url,
             )
-            for span in children
+            for span in spans
         ]
 
-    def image(self, alt: str, url: str, title: str | None = None) -> DocxImage:
+    def image(self, token: dict, state: Any) -> DocxImage:
         """Image ![alt](url)."""
-        return DocxImage(src=url, alt=alt, title=title)
+        attrs = token.get("attrs", {})
+        return DocxImage(
+            src=attrs.get("url", ""),
+            alt=token.get("alt", attrs.get("alt", "")),
+            title=attrs.get("title"),
+        )
 
-    def linebreak(self) -> TextSpan:
+    def linebreak(self, token: dict, state: Any) -> TextSpan:
         """Hard line break."""
         return TextSpan(text="\n")
 
-    def softbreak(self) -> TextSpan:
+    def softbreak(self, token: dict, state: Any) -> TextSpan:
         """Soft line break."""
         return TextSpan(text=" ")
 
     # -------------------------------------------------------------------------
-    # Block elements
+    # Block elements - receive token dict and state
     # -------------------------------------------------------------------------
 
-    def paragraph(self, children: list[Any]) -> DocxParagraph:
+    def paragraph(self, token: dict, state: Any) -> DocxParagraph:
         """Paragraph block."""
+        children = self._render_children(token, state)
         spans = self._flatten_inline(children)
         return DocxParagraph(content=spans)
 
-    def heading(self, children: list[Any], level: int) -> DocxHeading:
+    def heading(self, token: dict, state: Any) -> DocxHeading:
         """Heading block (H1-H6)."""
+        children = self._render_children(token, state)
         spans = self._flatten_inline(children)
+        attrs = token.get("attrs", {})
+        level = attrs.get("level", 1)
         return DocxHeading(level=level, content=spans)
 
-    def blank_line(self) -> None:
+    def blank_line(self, token: dict, state: Any) -> None:
         """Blank line - ignored."""
         return None
 
-    def thematic_break(self) -> DocxHorizontalRule:
+    def thematic_break(self, token: dict, state: Any) -> DocxHorizontalRule:
         """Horizontal rule (---, ***, ___)."""
         return DocxHorizontalRule()
 
-    def block_code(self, code: str, info: str | None = None) -> DocxCodeBlock:
+    def block_code(self, token: dict, state: Any) -> DocxCodeBlock:
         """Fenced or indented code block."""
+        code = token.get("raw", "")
+        attrs = token.get("attrs", {})
+        info = attrs.get("info", "") or token.get("info", "")
         language = info.split()[0] if info else None
         return DocxCodeBlock(code=code.rstrip("\n"), language=language)
 
-    def block_quote(self, children: list[Any]) -> DocxElement:
+    def block_quote(self, token: dict, state: Any) -> DocxElement:
         """Blockquote or admonition."""
+        children = self._render_children(token, state)
         elements = self._flatten_blocks(children)
 
         # Check if this is an admonition (GitHub-style)
@@ -178,16 +212,21 @@ class DocxRenderer(mistune.BaseRenderer):
 
         return DocxBlockquote(children=elements)
 
-    def list(self, children: list[Any], ordered: bool, start: int | None = None) -> DocxList:
+    def list(self, token: dict, state: Any) -> DocxList:
         """Ordered or unordered list."""
+        children = self._render_children(token, state)
         items = []
         for child in children:
             if isinstance(child, DocxListItem):
                 items.append(child)
+        attrs = token.get("attrs", {})
+        ordered = attrs.get("ordered", False)
+        start = attrs.get("start", 1)
         return DocxList(ordered=ordered, items=items, start=start or 1)
 
-    def list_item(self, children: list[Any]) -> DocxListItem:
+    def list_item(self, token: dict, state: Any) -> DocxListItem:
         """List item."""
+        children = self._render_children(token, state)
         # First paragraph becomes inline content, rest are nested elements
         content: list[TextSpan] = []
         nested: list[DocxElement] = []
@@ -205,8 +244,9 @@ class DocxRenderer(mistune.BaseRenderer):
     # Table elements
     # -------------------------------------------------------------------------
 
-    def table(self, children: list[Any]) -> DocxTable:
+    def table(self, token: dict, state: Any) -> DocxTable:
         """Table block."""
+        children = self._render_children(token, state)
         rows: list[DocxTableRow] = []
         has_header = False
 
@@ -224,25 +264,29 @@ class DocxRenderer(mistune.BaseRenderer):
 
         return DocxTable(rows=rows, has_header=has_header)
 
-    def table_head(self, children: list[Any]) -> list[DocxTableRow]:
+    def table_head(self, token: dict, state: Any) -> list[DocxTableRow]:
         """Table header section."""
+        children = self._render_children(token, state)
         return self._process_table_rows(children, is_header=True)
 
-    def table_body(self, children: list[Any]) -> list[DocxTableRow]:
+    def table_body(self, token: dict, state: Any) -> list[DocxTableRow]:
         """Table body section."""
+        children = self._render_children(token, state)
         return self._process_table_rows(children, is_header=False)
 
-    def table_row(self, children: list[Any]) -> DocxTableRow:
+    def table_row(self, token: dict, state: Any) -> DocxTableRow:
         """Table row."""
+        children = self._render_children(token, state)
         cells = [c for c in children if isinstance(c, DocxTableCell)]
         return DocxTableRow(cells=cells)
 
-    def table_cell(
-        self, children: list[Any], align: str | None = None, head: bool = False
-    ) -> DocxTableCell:
+    def table_cell(self, token: dict, state: Any) -> DocxTableCell:
         """Table cell."""
+        children = self._render_children(token, state)
         spans = self._flatten_inline(children)
-        return DocxTableCell(content=spans, is_header=head)
+        attrs = token.get("attrs", {})
+        is_head = attrs.get("is_head", False)
+        return DocxTableCell(content=spans, is_header=is_head)
 
     # -------------------------------------------------------------------------
     # Helper methods
@@ -288,7 +332,8 @@ class DocxRenderer(mistune.BaseRenderer):
                 # Update cells with header flag
                 if is_header:
                     cells = [
-                        DocxTableCell(content=c.content, is_header=True) for c in child.cells
+                        DocxTableCell(content=c.content, is_header=True)
+                        for c in child.cells
                     ]
                     rows.append(DocxTableRow(cells=cells))
                 else:

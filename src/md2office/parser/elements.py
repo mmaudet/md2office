@@ -70,6 +70,10 @@ class DocxTableCell(msgspec.Struct, frozen=True):
 
     content: list[TextSpan]
     is_header: bool = False
+    colspan: int = 1
+    rowspan: int = 1
+    merge_up: bool = False  # Indicates cell should merge with cell above (^^)
+    merge_left: bool = False  # Indicates cell should merge with cell to the left (>>)
 
 
 class DocxTableRow(msgspec.Struct, frozen=True):
