@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import Any
 
 from docx import Document
 from docx.table import Table
 from docx.text.paragraph import Paragraph
-from jinja2 import Environment, BaseLoader, TemplateSyntaxError
+from jinja2 import BaseLoader, Environment, TemplateSyntaxError
 
 from md2office.core.exceptions import TemplateError
 from md2office.template.storage import TemplateStorage
