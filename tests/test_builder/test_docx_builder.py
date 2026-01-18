@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-from io import BytesIO
-from pathlib import Path
-
-import pytest
-
 from md2office.builder import DocxBuilder
 from md2office.parser import (
     DocxCodeBlock,

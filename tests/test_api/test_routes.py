@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from litestar.testing import TestClient
 
 from md2office.main import app
