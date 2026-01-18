@@ -149,6 +149,64 @@ md2office template-add my-company.docx --name corporate
 md2office template-add my-template.docx --name custom
 ```
 
+## Variable Injection
+
+md2office supports Jinja2-style variable injection in both Markdown content and DOCX templates.
+
+### In Markdown Content
+
+```markdown
+# Report for {{customer}}
+
+Prepared by {{author}} on {{date}}.
+
+Project: {{project}}
+```
+
+### In Templates (Headers/Footers)
+
+Variables can be placed in template headers, footers, and cover pages:
+
+```
+Header: {{title}} | {{date}}
+Footer: {{author}} - Page X of Y
+```
+
+### Usage
+
+```bash
+# CLI
+md2office convert report.md -o report.docx \
+  -v customer="Acme Corp" \
+  -v author="Jane Smith" \
+  -v date="January 2026" \
+  -v project="Q1 Analysis"
+
+# Python API
+convert(
+    "report.md",
+    "report.docx",
+    variables={
+        "customer": "Acme Corp",
+        "author": "Jane Smith",
+        "date": "January 2026"
+    }
+)
+```
+
+### LINAGORA Template Variables
+
+| Variable | Location | Description |
+|----------|----------|-------------|
+| `{{title}}` | Header | Document title |
+| `{{subtitle}}` | Header | Document subtitle |
+| `{{author}}` | Footer | Author name |
+| `{{date}}` | Header/Footer | Document date |
+| `{{customer}}` | Body | Customer name |
+| `{{project}}` | Body | Project name |
+| `{{version}}` | Footer | Document version |
+| `{{classification}}` | Footer | Confidentiality level |
+
 ## Configuration
 
 ### Style Mapping
@@ -225,9 +283,10 @@ md2office/
 
 ## Documentation
 
-- [User Guide](docs/documentation.md) - Complete usage documentation
-- [API Reference](docs/documentation.md#api-rest) - REST API endpoints
-- [Template Guide](docs/documentation.md#création-dun-template-personnalisé) - Creating custom templates
+- [User Guide (English)](docs/README.md) - Complete usage documentation
+- [Guide Utilisateur (Français)](docs/README.fr.md) - Documentation complète en français
+- [API Reference](docs/README.md#rest-api) - REST API endpoints
+- [Template Guide](docs/README.md#creating-custom-templates) - Creating custom templates
 
 ## Contributing
 

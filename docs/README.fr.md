@@ -4,6 +4,8 @@
 
 md2office est un outil open source permettant de convertir des fichiers Markdown en documents Word (DOCX) professionnels avec support de templates corporate et mapping de styles.
 
+*[English version available](README.md)*
+
 ---
 
 ## Table des matières
