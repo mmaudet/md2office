@@ -17,13 +17,13 @@ from md2office.parser.elements import DocxAdmonition, DocxParagraph, TextSpan
 class AdmonitionBuilder:
     """Builds Word admonitions (callouts) as styled tables."""
 
-    # Admonition icons/emoji
+    # Admonition icons - using simple text symbols for better compatibility
     ICONS = {
-        "NOTE": "\u2139",  # Information source
-        "TIP": "\U0001F4A1",  # Light bulb
-        "IMPORTANT": "\u2757",  # Exclamation mark
-        "WARNING": "\u26A0",  # Warning sign
-        "CAUTION": "\U0001F6D1",  # Stop sign
+        "NOTE": "i",  # Information
+        "TIP": "?",  # Tip/hint (will be styled as lightbulb visually)
+        "IMPORTANT": "!",  # Important
+        "WARNING": "!",  # Warning
+        "CAUTION": "X",  # Caution/danger
     }
 
     def __init__(self, document: Document, style_mapper: StyleMapper) -> None:
@@ -49,17 +49,24 @@ class AdmonitionBuilder:
 
         # Create a single-row, two-column table
         table = self._document.add_table(rows=1, cols=2)
-        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        table.alignment = WD_TABLE_ALIGNMENT.LEFT
         table.autofit = False
 
-        # Set column widths
-        table.columns[0].width = Inches(0.5)  # Icon column
-        table.columns[1].width = Inches(5.5)  # Content column
+        # Set table to full page width (6.5 inches for standard margins)
+        self._set_table_full_width(table)
+
+        # Set column widths (icon narrow, content fills rest)
+        table.columns[0].width = Inches(0.6)  # Icon column
+        table.columns[1].width = Inches(5.9)  # Content column (6.5 - 0.6)
 
         # Get the row and cells
         row = table.rows[0]
         icon_cell = row.cells[0]
         content_cell = row.cells[1]
+
+        # Set minimum row height for vertical centering to be visible
+        # 720 twips = 36pt = ~0.5 inch minimum height
+        self._set_row_height(row, 720)
 
         # Style the icon cell
         self._build_icon_cell(icon_cell, admonition.admonition_type, config)
@@ -87,13 +94,18 @@ class AdmonitionBuilder:
             config: Admonition configuration.
         """
         cell.text = ""
+        self._set_cell_vertical_alignment(cell, "center")
         paragraph = cell.paragraphs[0]
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
 
-        # Add icon
-        icon = self.ICONS.get(admonition_type, "\u2139")
+        # Add icon with bold styling for better visibility
+        icon = self.ICONS.get(admonition_type, "i")
         run = paragraph.add_run(icon)
-        run.font.size = Pt(16)
+        run.font.name = "Arial"
+        run.font.size = Pt(18)
+        run.font.bold = True
         run.font.color.rgb = RGBColor.from_string(config.get("color", "0969DA"))
 
     def _build_content_cell(self, cell, admonition: DocxAdmonition, config: dict) -> None:
@@ -105,20 +117,23 @@ class AdmonitionBuilder:
             config: Admonition configuration.
         """
         cell.text = ""
+        self._set_cell_vertical_alignment(cell, "center")
 
-        # Add title
-        title = admonition.title or admonition.admonition_type.capitalize()
-        title_para = cell.paragraphs[0]
-        title_run = title_para.add_run(title)
-        title_run.bold = True
-        title_run.font.size = Pt(11)
-        title_run.font.color.rgb = RGBColor.from_string(config.get("color", "0969DA"))
-
-        # Add content from children
+        # Add content from children (no separate title)
+        first_para = True
         for child in admonition.children:
             if isinstance(child, DocxParagraph):
-                para = cell.add_paragraph()
+                if first_para:
+                    para = cell.paragraphs[0]
+                    first_para = False
+                else:
+                    para = cell.add_paragraph()
+                para.paragraph_format.space_before = Pt(0)
+                para.paragraph_format.space_after = Pt(0)
                 self._add_text_spans(para, child.content)
+                # Set text color for content
+                for run in para.runs:
+                    run.font.color.rgb = RGBColor.from_string(config.get("color", "0969DA"))
 
     def _add_text_spans(self, paragraph, spans: list[TextSpan]) -> None:
         """Add text spans to a paragraph.
@@ -180,3 +195,95 @@ class AdmonitionBuilder:
         tbl_pr.append(tbl_borders)
         if tbl.tblPr is None:
             tbl.insert(0, tbl_pr)
+
+    def _set_table_full_width(self, table: Table) -> None:
+        """Set table to full page width (100%).
+
+        Args:
+            table: Word table to set width.
+        """
+        tbl = table._tbl
+        tbl_pr = tbl.tblPr if tbl.tblPr is not None else OxmlElement("w:tblPr")
+
+        # Set table width to 100%
+        tbl_w = OxmlElement("w:tblW")
+        tbl_w.set(qn("w:w"), "5000")  # 5000 = 100% in fifths of a percent
+        tbl_w.set(qn("w:type"), "pct")
+        tbl_pr.append(tbl_w)
+
+        if tbl.tblPr is None:
+            tbl.insert(0, tbl_pr)
+
+    def _set_cell_vertical_alignment(self, cell, alignment: str) -> None:
+        """Set vertical alignment of a cell using oxml.
+
+        Args:
+            cell: Word table cell.
+            alignment: Alignment value ('top', 'center', 'bottom').
+        """
+        tc = cell._tc
+        tc_pr = tc.get_or_add_tcPr()
+        # Remove any existing vAlign element
+        for existing in tc_pr.findall(qn("w:vAlign")):
+            tc_pr.remove(existing)
+        # Add new vAlign element
+        v_align = OxmlElement("w:vAlign")
+        v_align.set(qn("w:val"), alignment)
+        tc_pr.append(v_align)
+
+    def _set_row_height(self, row, height_twips: int) -> None:
+        """Set minimum row height.
+
+        Args:
+            row: Word table row.
+            height_twips: Height in twips (1/20 of a point).
+        """
+        tr = row._tr
+        tr_pr = tr.get_or_add_trPr()
+        # Remove any existing trHeight element
+        for existing in tr_pr.findall(qn("w:trHeight")):
+            tr_pr.remove(existing)
+        # Add new trHeight element with atLeast rule
+        tr_height = OxmlElement("w:trHeight")
+        tr_height.set(qn("w:val"), str(height_twips))
+        tr_height.set(qn("w:hRule"), "atLeast")
+        tr_pr.append(tr_height)
+
+    def _set_cell_margins(self, cell, top=None, bottom=None, left=None, right=None) -> None:
+        """Set cell margins/padding using oxml.
+
+        Args:
+            cell: Word table cell.
+            top: Top margin (Pt value).
+            bottom: Bottom margin (Pt value).
+            left: Left margin (Pt value).
+            right: Right margin (Pt value).
+        """
+        tc = cell._tc
+        tc_pr = tc.get_or_add_tcPr()
+        # Remove any existing tcMar element
+        for existing in tc_pr.findall(qn("w:tcMar")):
+            tc_pr.remove(existing)
+        # Add new tcMar element
+        tc_mar = OxmlElement("w:tcMar")
+        if top:
+            top_elem = OxmlElement("w:top")
+            top_elem.set(qn("w:w"), str(int(top)))
+            top_elem.set(qn("w:type"), "dxa")
+            tc_mar.append(top_elem)
+        if bottom:
+            bottom_elem = OxmlElement("w:bottom")
+            bottom_elem.set(qn("w:w"), str(int(bottom)))
+            bottom_elem.set(qn("w:type"), "dxa")
+            tc_mar.append(bottom_elem)
+        if left:
+            left_elem = OxmlElement("w:left")
+            left_elem.set(qn("w:w"), str(int(left)))
+            left_elem.set(qn("w:type"), "dxa")
+            tc_mar.append(left_elem)
+        if right:
+            right_elem = OxmlElement("w:right")
+            right_elem.set(qn("w:w"), str(int(right)))
+            right_elem.set(qn("w:type"), "dxa")
+            tc_mar.append(right_elem)
+        tc_pr.append(tc_mar)
