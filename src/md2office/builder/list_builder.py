@@ -75,21 +75,25 @@ class ListBuilder:
         """
         paragraph = self._document.add_paragraph()
 
-        # Try to apply list style
+        # Use Normal style to avoid doubled bullets from List Bullet/Number styles
+        # We'll add manual prefix for consistent rendering
         try:
-            paragraph.style = style_name
+            paragraph.style = "Normal"
         except KeyError:
-            pass  # Style not found, use default
+            pass
 
         # Set indentation based on level
-        indent = Inches(0.5 * level)
-        paragraph.paragraph_format.left_indent = indent
+        # Level 0: 0.35 inch (within margins, room for bullet)
+        # Level 1+: additional 0.35 inch per level
+        base_indent = Inches(0.35)
+        level_indent = Inches(0.35 * level)
+        paragraph.paragraph_format.left_indent = base_indent + level_indent
+        paragraph.paragraph_format.space_after = Pt(3)
 
-        # Add bullet/number prefix if style doesn't handle it
-        if not self._style_has_numbering(style_name):
-            prefix = f"{number}. " if ordered else "• "
-            run = paragraph.add_run(prefix)
-            run.bold = False
+        # Add bullet/number prefix
+        prefix = f"{number}. " if ordered else "- "
+        run = paragraph.add_run(prefix)
+        run.bold = False
 
         # Add content with formatting
         self._add_text_spans(paragraph, item.content)
@@ -121,22 +125,3 @@ class ListBuilder:
                 # A more complete implementation would use oxml
                 run.underline = True
 
-    def _style_has_numbering(self, style_name: str) -> bool:
-        """Check if a style has built-in numbering.
-
-        Args:
-            style_name: Name of the style.
-
-        Returns:
-            True if style handles numbering automatically.
-        """
-        # Styles that typically handle their own numbering
-        numbered_styles = {
-            "List Bullet",
-            "List Number",
-            "List Bullet 2",
-            "List Number 2",
-            "List Bullet 3",
-            "List Number 3",
-        }
-        return style_name in numbered_styles

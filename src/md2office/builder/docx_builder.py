@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import BinaryIO
 
 from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 
 from md2office.builder.admonition_builder import AdmonitionBuilder
@@ -15,6 +17,9 @@ from md2office.builder.style_mapper import StyleMapper
 from md2office.builder.table_builder import TableBuilder
 from md2office.core.config import StylesConfig
 from md2office.core.exceptions import BuilderError
+from md2office.parser.elements import (
+    Document as ASTDocument,
+)
 from md2office.parser.elements import (
     DocxAdmonition,
     DocxBlockquote,
@@ -26,7 +31,6 @@ from md2office.parser.elements import (
     DocxList,
     DocxParagraph,
     DocxTable,
-    Document as ASTDocument,
     TextSpan,
 )
 
@@ -273,7 +277,10 @@ class DocxBuilder:
     def _build_admonition(self, admonition: DocxAdmonition) -> None:
         """Build an admonition element."""
         assert self._admonition_builder is not None
+        assert self._document is not None
         self._admonition_builder.build(admonition)
+        # Add spacing after the admonition table
+        self._document.add_paragraph()
 
     def _add_text_spans(self, paragraph, spans: list[TextSpan]) -> None:
         """Add text spans to a paragraph.
@@ -283,18 +290,91 @@ class DocxBuilder:
             spans: List of text spans to add.
         """
         for span in spans:
-            run = paragraph.add_run(span.text)
-            run.bold = span.bold
-            run.italic = span.italic
-
-            if span.code:
-                run.font.name = "Consolas"
-                run.font.size = Pt(10)
-
-            if span.strikethrough:
-                run.font.strike = True
-
             if span.link:
-                # For now, just underline links
-                # Full hyperlink support requires oxml manipulation
-                run.underline = True
+                # Create a proper hyperlink
+                self._add_hyperlink(paragraph, span)
+            else:
+                run = paragraph.add_run(span.text)
+                run.bold = span.bold
+                run.italic = span.italic
+
+                if span.code:
+                    run.font.name = "Consolas"
+                    run.font.size = Pt(10)
+
+                if span.strikethrough:
+                    run.font.strike = True
+
+    def _add_hyperlink(self, paragraph, span: TextSpan) -> None:
+        """Add a clickable hyperlink to a paragraph.
+
+        Args:
+            paragraph: Word paragraph.
+            span: TextSpan with link URL.
+        """
+        assert self._document is not None
+
+        # Get the document part to add the relationship
+        part = paragraph.part
+        r_id = part.relate_to(
+            span.link,
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+            is_external=True,
+        )
+
+        # Create the hyperlink element
+        hyperlink = OxmlElement("w:hyperlink")
+        hyperlink.set(qn("r:id"), r_id)
+
+        # Create the run element inside the hyperlink
+        new_run = OxmlElement("w:r")
+
+        # Add run properties
+        rPr = OxmlElement("w:rPr")
+
+        # Bold
+        if span.bold:
+            bold_elem = OxmlElement("w:b")
+            rPr.append(bold_elem)
+
+        # Italic
+        if span.italic:
+            italic_elem = OxmlElement("w:i")
+            rPr.append(italic_elem)
+
+        # Underline (standard for hyperlinks)
+        underline = OxmlElement("w:u")
+        underline.set(qn("w:val"), "single")
+        rPr.append(underline)
+
+        # Blue color (standard for hyperlinks)
+        color = OxmlElement("w:color")
+        color.set(qn("w:val"), "0563C1")
+        rPr.append(color)
+
+        # Code formatting
+        if span.code:
+            font = OxmlElement("w:rFonts")
+            font.set(qn("w:ascii"), "Consolas")
+            font.set(qn("w:hAnsi"), "Consolas")
+            rPr.append(font)
+            size = OxmlElement("w:sz")
+            size.set(qn("w:val"), "20")  # 10pt = 20 half-points
+            rPr.append(size)
+
+        # Strikethrough
+        if span.strikethrough:
+            strike = OxmlElement("w:strike")
+            rPr.append(strike)
+
+        new_run.append(rPr)
+
+        # Add the text
+        text_elem = OxmlElement("w:t")
+        text_elem.text = span.text
+        new_run.append(text_elem)
+
+        hyperlink.append(new_run)
+
+        # Append hyperlink to paragraph
+        paragraph._p.append(hyperlink)
