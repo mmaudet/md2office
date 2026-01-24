@@ -123,6 +123,19 @@ curl -X POST http://localhost:8080/api/v1/convert \
 
 For detailed deployment instructions, volume mounting, production setup, and troubleshooting, see the [Docker Deployment Guide](docs/DOCKER.md).
 
+#### API Documentation
+
+When running the server, interactive API documentation is available via Swagger UI:
+
+- **Swagger UI**: [http://localhost:8080/schema/swagger](http://localhost:8080/schema/swagger)
+- **OpenAPI Schema**: [http://localhost:8080/schema/openapi.json](http://localhost:8080/schema/openapi.json)
+
+The Swagger UI provides:
+- Interactive API exploration
+- Request/response examples
+- Schema definitions
+- Try-it-out functionality for all endpoints
+
 ## Supported Markdown Features
 
 | Feature | Syntax | Notes |
@@ -310,8 +323,8 @@ md2office/
 
 - [User Guide (English)](docs/README.md) - Complete usage documentation
 - [Guide Utilisateur (Français)](docs/README.fr.md) - Documentation complète en français
-- [Architecture Documentation](docs/ARCHITECTURE.md) - Internal architecture and conversion pipeline
 - [API Reference](docs/README.md#rest-api) - REST API endpoints
+- [Swagger UI](http://localhost:8080/schema/swagger) - Interactive API documentation (when server is running)
 - [Template Guide](docs/README.md#creating-custom-templates) - Creating custom templates
 - [Error Handling Guide](docs/ERROR_HANDLING.md) - Error handling and exception reference
 

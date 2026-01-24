@@ -6,6 +6,7 @@ from litestar import Litestar
 from litestar.config.cors import CORSConfig
 from litestar.openapi import OpenAPIConfig
 from litestar.openapi.plugins import SwaggerRenderPlugin
+from litestar.openapi.spec import Contact, ExternalDocumentation, License, Tag
 
 from md2office import __version__
 from md2office.api.routes import api_router
@@ -22,6 +23,23 @@ openapi_config = OpenAPIConfig(
     title="md2office API",
     version=__version__,
     description="Convert Markdown to professional DOCX documents",
+    contact=Contact(
+        name="md2office",
+        url="https://github.com/md2office/md2office",
+    ),
+    license=License(
+        name="MIT",
+        identifier="MIT",
+    ),
+    tags=[
+        Tag(name="Health", description="Health check and service status endpoints"),
+        Tag(name="Conversion", description="Markdown to DOCX conversion endpoints"),
+        Tag(name="Templates", description="Template management endpoints"),
+    ],
+    external_docs=ExternalDocumentation(
+        url="https://github.com/md2office/md2office#readme",
+        description="Project documentation and usage guide",
+    ),
     render_plugins=[SwaggerRenderPlugin()],
 )
 

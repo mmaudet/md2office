@@ -29,9 +29,18 @@ class HealthController(Controller):
 
     path = "/health"
 
-    @get()
+    @get(
+        summary="Health check",
+        description="Check the health status and version of the md2office API service.",
+        tags=["Health"],
+        operation_id="healthCheck",
+    )
     async def health_check(self) -> HealthResponse:
-        """Health check endpoint."""
+        """Health check endpoint.
+
+        Returns:
+            HealthResponse with status and version information.
+        """
         return HealthResponse(status="healthy", version=__version__)
 
 
@@ -40,7 +49,12 @@ class ConvertController(Controller):
 
     path = "/api/v1/convert"
 
-    @post()
+    @post(
+        summary="Convert Markdown text to DOCX",
+        description="Convert Markdown content to a DOCX document with optional template and variable substitution.",
+        tags=["Conversion"],
+        operation_id="convertMarkdown",
+    )
     async def convert_markdown(
         self,
         data: ConvertRequest,
@@ -77,7 +91,13 @@ class ConvertController(Controller):
                 status_code=HTTP_400_BAD_REQUEST,
             )
 
-    @post("/file")
+    @post(
+        "/file",
+        summary="Convert Markdown file to DOCX",
+        description="Upload and convert a Markdown file to a DOCX document with optional template and variable substitution.",
+        tags=["Conversion"],
+        operation_id="convertMarkdownFile",
+    )
     async def convert_file(
         self,
         data: UploadFile = Body(media_type=RequestEncodingType.MULTI_PART),
@@ -147,7 +167,12 @@ class TemplateController(Controller):
 
     path = "/api/v1/templates"
 
-    @get()
+    @get(
+        summary="List all templates",
+        description="Retrieve a list of all available DOCX templates in the system.",
+        tags=["Templates"],
+        operation_id="listTemplates",
+    )
     async def list_templates(self) -> TemplateListResponse:
         """List all available templates."""
         storage = TemplateStorage()
@@ -165,7 +190,13 @@ class TemplateController(Controller):
             count=len(templates),
         )
 
-    @get("/{name:str}")
+    @get(
+        "/{name:str}",
+        summary="Get template information",
+        description="Retrieve detailed information about a specific template by name.",
+        tags=["Templates"],
+        operation_id="getTemplate",
+    )
     async def get_template(self, name: str) -> Response:
         """Get template information or download.
 
@@ -195,7 +226,12 @@ class TemplateController(Controller):
                 status_code=HTTP_400_BAD_REQUEST,
             )
 
-    @post()
+    @post(
+        summary="Upload a new template",
+        description="Upload a DOCX file as a new template with optional name and overwrite settings.",
+        tags=["Templates"],
+        operation_id="uploadTemplate",
+    )
     async def upload_template(
         self,
         data: UploadFile = Body(media_type=RequestEncodingType.MULTI_PART),
@@ -245,7 +281,14 @@ class TemplateController(Controller):
                 status_code=HTTP_400_BAD_REQUEST,
             )
 
-    @delete("/{name:str}", status_code=HTTP_200_OK)
+    @delete(
+        "/{name:str}",
+        summary="Delete a template",
+        description="Remove a template from the system by name.",
+        tags=["Templates"],
+        operation_id="deleteTemplate",
+        status_code=HTTP_200_OK,
+    )
     async def delete_template(self, name: str) -> Response:
         """Delete a template.
 
