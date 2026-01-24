@@ -102,7 +102,100 @@ class TextSpan(msgspec.Struct, frozen=True):
 
 
 class DocxElement(msgspec.Struct, frozen=True, tag=True):
-    """Base class for all DOCX elements."""
+    """Base class for all block-level elements in the DOCX AST.
+
+    DocxElement is the root of the element hierarchy representing block-level
+    Markdown constructs (paragraphs, headings, lists, tables, etc.). It uses
+    msgspec's tagged union feature to enable efficient serialization and type-safe
+    polymorphism across all element types.
+
+    Tagged Union Architecture:
+        The `tag=True` parameter enables msgspec tagged unions, which provide:
+        - Type discrimination: Each subclass gets a unique tag field for runtime
+          type identification (e.g., "heading", "paragraph", "table")
+        - Efficient serialization: msgspec can serialize/deserialize the correct
+          subclass based on the tag without custom logic
+        - Type safety: Static type checkers can verify element types in lists
+        - Pattern matching: Enables exhaustive type matching in Python 3.10+
+
+        Subclasses specify their tag with `tag="name"`:
+            class DocxHeading(DocxElement, frozen=True, tag="heading"):
+                ...
+
+        When serialized, elements include their tag:
+            {"type": "heading", "level": 1, "content": [...]}
+
+    Immutability:
+        All elements are frozen (`frozen=True`), making them immutable after creation.
+        This ensures:
+        - Thread safety: Elements can be safely shared across threads
+        - Hashability: Elements can be used as dict keys or in sets
+        - Predictability: Once created, elements cannot be accidentally modified
+        - Performance: msgspec optimizes frozen structs with __slots__
+
+    Subclass Hierarchy:
+        Block-level elements (inherit from DocxElement):
+        - DocxHeading: H1-H6 headings with optional anchors
+        - DocxParagraph: Text paragraphs with inline formatting
+        - DocxCodeBlock: Fenced/indented code blocks with syntax highlighting
+        - DocxBlockquote: Blockquotes containing nested elements
+        - DocxList: Ordered/unordered lists with nested items
+        - DocxTable: Tables with rows, cells, and formatting
+        - DocxImage: Image references with alt text and titles
+        - DocxHorizontalRule: Thematic breaks (---, ***, ___)
+        - DocxAdmonition: Callout blocks (NOTE, WARNING, etc.)
+
+        Helper structs (do NOT inherit from DocxElement):
+        - TextSpan: Inline formatted text (not a block element)
+        - DocxListItem: Individual list items (wrapped by DocxList)
+        - DocxTableRow: Table rows (wrapped by DocxTable)
+        - DocxTableCell: Table cells (wrapped by DocxTableRow)
+
+    Usage in the Pipeline:
+        1. DocxRenderer (parser/renderer.py) creates DocxElement instances from
+           Markdown tokens during parsing
+        2. Elements form an AST (Abstract Syntax Tree) representing document structure
+        3. DocxBuilder (builder/docx_builder.py) consumes elements to generate
+           Word documents using python-docx
+        4. Elements can be serialized to JSON for caching or API responses
+
+    Examples:
+        Type discrimination in a list:
+            elements: list[DocxElement] = [
+                DocxHeading(level=1, content=[...]),
+                DocxParagraph(content=[...]),
+                DocxTable(rows=[...]),
+            ]
+            # msgspec knows each element's type from its tag
+
+        Pattern matching (Python 3.10+):
+            match element:
+                case DocxHeading(level=1):
+                    # Handle H1
+                case DocxParagraph(content=spans):
+                    # Handle paragraph
+                case DocxTable(rows=rows):
+                    # Handle table
+
+        Serialization with msgspec:
+            import msgspec
+            elements = [DocxHeading(level=1, content=[...])]
+            json_bytes = msgspec.json.encode(elements)
+            decoded = msgspec.json.decode(json_bytes, type=list[DocxElement])
+            # msgspec automatically deserializes to correct subclass
+
+    Design Rationale:
+        - msgspec over dataclasses: 10-100x faster serialization/deserialization
+        - Tagged unions over manual type fields: Type-safe polymorphism
+        - Frozen structs: Immutability prevents bugs and enables optimizations
+        - No base fields: DocxElement is purely structural, subclasses define all data
+
+    See Also:
+        - TextSpan: Inline formatting elements (not block-level)
+        - DocxRenderer: Creates DocxElement instances from Markdown
+        - DocxBuilder: Consumes DocxElement instances to build Word documents
+        - msgspec documentation: https://jcristharif.com/msgspec/structs.html#tagged-unions
+    """
 
     pass
 
