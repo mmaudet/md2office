@@ -1497,13 +1497,451 @@ class DocxTableCell(msgspec.Struct, frozen=True):
 
 
 class DocxTableRow(msgspec.Struct, frozen=True):
-    """Table row."""
+    """Single row in a table containing an ordered sequence of cells.
+
+    DocxTableRow represents one horizontal row within a DocxTable. It is a simple
+    container structure that holds an ordered list of DocxTableCell objects. Rows
+    do not have row-level attributes like height or styling - these are determined
+    during Word document building based on cell content and table configuration.
+
+    Note: DocxTableRow is a helper struct and does NOT inherit from DocxElement.
+    It is always wrapped by DocxTable, which is the actual block-level element in
+    the AST. Rows cannot exist independently - they must be contained within a
+    parent DocxTable.
+
+    Attributes:
+        cells: Ordered list of DocxTableCell objects forming this row's columns.
+            The number of cells determines the column count for this row, though
+            rows within the same table may have different cell counts (irregular
+            tables). Never None, but can be empty list for zero-width rows (rare).
+
+            Cell ordering:
+            - Index 0: Leftmost cell (first column)
+            - Index 1: Second column
+            - Index N: Rightmost cell (last column)
+            - The order in this list directly determines left-to-right column order
+
+            Variable cell counts:
+            When rows in the same table have different lengths, TableBuilder
+            normalizes to the maximum column count by treating missing cells as
+            empty. Example:
+                Row 1: [Cell A, Cell B, Cell C]  → 3 cells
+                Row 2: [Cell X, Cell Y]          → 2 cells (normalized to 3)
+                num_cols = max(3, 2) = 3
+                Word table: Row 2 gets empty third cell automatically
+
+    Relationship to Table Structure:
+        DocxTable contains rows, rows contain cells:
+            DocxTable
+            ├── DocxTableRow (row 0)
+            │   ├── DocxTableCell (0,0)
+            │   ├── DocxTableCell (0,1)
+            │   └── DocxTableCell (0,2)
+            ├── DocxTableRow (row 1)
+            │   ├── DocxTableCell (1,0)
+            │   ├── DocxTableCell (1,1)
+            │   └── DocxTableCell (1,2)
+            └── DocxTableRow (row 2)
+                └── ...
+
+        Each row is independent - cells in one row don't directly reference cells
+        in other rows (except via merge_up flags for vertical merging).
+
+    Header Row Semantics:
+        The first row (index 0) in a table is typically the header row when
+        DocxTable.has_header=True. Header rows receive special styling:
+        - Cells have is_header=True flag set
+        - Bold font, background color, centered alignment
+        - Applied by TableBuilder._fill_cell() when is_header_row=True
+
+        Example:
+            DocxTable(
+                rows=[
+                    DocxTableRow(cells=[...]),  ← Header row if has_header=True
+                    DocxTableRow(cells=[...]),  ← Data row
+                    DocxTableRow(cells=[...]),  ← Data row
+                ],
+                has_header=True
+            )
+
+        The row itself doesn't know it's a header - this is determined by:
+            is_header_row = (row_idx == 0) and table.has_header
+
+    Cell Merging Across Rows:
+        While rows are structurally independent, cell merging creates logical
+        dependencies between rows:
+        - Vertical merges (merge_up=True): Cell merges with cell in previous row
+        - Horizontal merges (merge_left=True): Cell merges with previous cell in same row
+
+        Example vertical merge across rows:
+            Row 0: [Cell A (merge_up=False), Cell B]
+            Row 1: [Cell ^^ (merge_up=True), Cell C]
+            Row 2: [Cell ^^ (merge_up=True), Cell D]
+
+        The merge_up flags in rows 1 and 2 reference the cell in row 0, creating
+        a multi-row merged cell. TableBuilder._process_cell_merges() scans rows
+        top-to-bottom to detect and execute these merges.
+
+    Edge Cases:
+        - Empty cells (cells=[]): Valid, renders as empty row (rare)
+        - Single cell: Valid, creates one-column table
+        - Variable cell counts: Handled by TableBuilder (pads to max columns)
+        - All cells marked merge_left: Invalid (no origin cell), parser should prevent
+        - First row with merge_up cells: Invalid (no row above), parser should prevent
+
+    Examples:
+        Simple row with plain text cells:
+            DocxTableRow(cells=[
+                DocxTableCell(content=[TextSpan(text="Name")]),
+                DocxTableCell(content=[TextSpan(text="Age")]),
+                DocxTableCell(content=[TextSpan(text="City")]),
+            ])
+
+        Header row (is_header flags set on cells):
+            DocxTableRow(cells=[
+                DocxTableCell(content=[TextSpan(text="Header 1")], is_header=True),
+                DocxTableCell(content=[TextSpan(text="Header 2")], is_header=True),
+            ])
+
+        Row with merged cells (horizontal merge):
+            DocxTableRow(cells=[
+                DocxTableCell(content=[TextSpan(text="Spans 2 columns")]),
+                DocxTableCell(content=[], merge_left=True),  # Merged into previous
+                DocxTableCell(content=[TextSpan(text="Separate cell")]),
+            ])
+
+        Row with formatted content:
+            DocxTableRow(cells=[
+                DocxTableCell(content=[
+                    TextSpan(text="Bold", bold=True),
+                    TextSpan(text=" text"),
+                ]),
+                DocxTableCell(content=[
+                    TextSpan(text="link", link="https://example.com"),
+                ]),
+            ])
+
+        Empty row:
+            DocxTableRow(cells=[])
+
+    Usage:
+        DocxTableRow instances are created by DocxRenderer._process_table() when
+        parsing Markdown table tokens from mistune. The renderer:
+        1. Iterates through row tokens in the table
+        2. For each row, iterates through cell tokens
+        3. Creates DocxTableCell for each cell (with merge flags if applicable)
+        4. Wraps cells list in DocxTableRow
+        5. Collects all rows into DocxTable.rows list
+
+        TableBuilder.build() consumes DocxTableRow to create Word table rows:
+        1. Iterates through table_element.rows with enumerate to get row_idx
+        2. Determines if row is header: is_header_row = (row_idx == 0) and has_header
+        3. Gets corresponding Word table row: word_row = table.rows[row_idx]
+        4. Sets minimum row height (400 twips = 20pt)
+        5. Iterates through cells, filling each with content and styling
+        6. Applies alternating row background colors if configured (non-header rows)
+
+    See Also:
+        - DocxTable: Parent container for rows (the actual block element)
+        - DocxTableCell: Individual cells within a row (contains content and merge flags)
+        - TableBuilder.build(): Builds Word tables from DocxTable, processing rows sequentially
+        - TableBuilder._fill_cell(): Populates individual cell content and applies styling
+        - TableBuilder._process_cell_merges(): Handles vertical/horizontal cell merging
+        - StyleMapper.table_config(): Provides table formatting configuration
+    """
 
     cells: list[DocxTableCell]
 
 
 class DocxTable(DocxElement, frozen=True, tag="table"):
-    """Table element."""
+    """Table block element with rows, cells, and optional header row.
+
+    DocxTable represents Markdown tables in the AST, including both simple and complex
+    table structures with cell merging, header rows, and formatted content. Tables are
+    block-level elements that contain rows (DocxTableRow), which in turn contain cells
+    (DocxTableCell). The has_header flag controls whether the first row receives special
+    header styling (bold, background color, centered text).
+
+    Attributes:
+        rows: List of DocxTableRow objects forming the table structure. Each row
+            contains cells (columns), and rows are rendered top-to-bottom in the
+            order they appear in this list. Never None, but can be empty for
+            zero-row tables (rare but valid).
+
+            Table dimensions:
+            - Row count: len(rows)
+            - Column count: max(len(row.cells) for row in rows)
+            - Irregular tables (rows with different cell counts) are normalized
+              to the maximum column count by TableBuilder, padding short rows
+              with empty cells
+
+            Row ordering:
+            - Index 0: First row (header row if has_header=True)
+            - Index 1: Second row (first data row if has_header=True)
+            - Index N: Last row
+
+        has_header: Boolean flag indicating whether the first row (rows[0]) should
+            receive header cell styling. When True, cells in the first row are
+            treated as header cells and rendered with bold font, background color,
+            and centered alignment as configured in StyleMapper.table_config().
+
+            Header Row Behavior:
+            - has_header=True (default):
+                * First row (rows[0]) is the header row
+                * TableBuilder sets is_header_row=True for row 0
+                * Header cells get special styling: bold, background, centered
+                * Remaining rows (1+) are data rows with normal styling
+                * Common for tables with column headers (Name | Age | City)
+                * Markdown tables always have headers (pipe tables)
+
+            - has_header=False:
+                * No row receives header styling
+                * All rows (including row 0) are treated as data rows
+                * Cells in row 0 are styled the same as other rows
+                * Uncommon in Markdown but supported for data-only tables
+                * Used for tables without column headers (grid tables)
+
+            Implementation in TableBuilder.build():
+                ```python
+                for row_idx, row in enumerate(table_element.rows):
+                    is_header_row = row_idx == 0 and table_element.has_header
+                    # is_header_row determines cell styling in _fill_cell()
+                ```
+
+            The has_header flag does NOT affect the AST structure (rows list is
+            identical either way) - it only affects rendering/styling. The flag
+            is parsed from Markdown table syntax and preserved through to Word
+            document building.
+
+    Markdown Table Syntax:
+        Markdown tables use pipe (|) delimiters with optional header separator:
+
+        Standard table (has_header=True):
+            | Name  | Age | City      |
+            |-------|-----|-----------|
+            | Alice | 30  | New York  |
+            | Bob   | 25  | London    |
+
+        This produces:
+            DocxTable(
+                rows=[
+                    DocxTableRow(cells=[  # Header row (row 0)
+                        DocxTableCell(content=[TextSpan(text="Name")], is_header=True),
+                        DocxTableCell(content=[TextSpan(text="Age")], is_header=True),
+                        DocxTableCell(content=[TextSpan(text="City")], is_header=True),
+                    ]),
+                    DocxTableRow(cells=[  # Data row (row 1)
+                        DocxTableCell(content=[TextSpan(text="Alice")]),
+                        DocxTableCell(content=[TextSpan(text="30")]),
+                        DocxTableCell(content=[TextSpan(text="New York")]),
+                    ]),
+                    DocxTableRow(cells=[  # Data row (row 2)
+                        DocxTableCell(content=[TextSpan(text="Bob")]),
+                        DocxTableCell(content=[TextSpan(text="25")]),
+                        DocxTableCell(content=[TextSpan(text="London")]),
+                    ]),
+                ],
+                has_header=True
+            )
+
+        The |---|---| separator line is not stored in the AST - it only signals
+        that the first row is a header. All content rows become DocxTableRow objects.
+
+    Cell Merging Support:
+        DocxTable supports both vertical and horizontal cell merging via special
+        Markdown markers (extended Markdown syntax):
+        - `^^` marker: Merge cell with cell directly above (vertical merge)
+        - `>>` marker: Merge cell with cell to the left (horizontal merge)
+
+        Example with vertical merge:
+            | Name  | Details           |
+            |-------|-------------------|
+            | Alice | Smart             |
+            | ^^    | Hard-working      |
+            | Bob   | Funny             |
+
+        Produces merged cell spanning rows 1-2 in column 0 (Alice spans 2 rows).
+
+        Example with horizontal merge:
+            | Name  | Age | City      |
+            |-------|-----|-----------|
+            | Alice | 30  | New York  |
+            | Bob   | >>  | >>        |
+
+        Produces merged cell spanning all 3 columns in row 2 (Bob's row spans full width).
+
+        Merging is handled by TableBuilder._process_cell_merges(), which:
+        1. Scans cells for merge_up and merge_left flags
+        2. Groups consecutive merge-flagged cells with their origin cells
+        3. Calls Word's cell.merge() to create merged cells
+        4. Tracks merged positions to skip during content filling
+
+    Header Styling Configuration:
+        Header cell styling is controlled by StyleMapper.table_config(), which
+        returns a dictionary with formatting options:
+        - header_bg: Background color for header cells (e.g., "4472C4" = blue)
+        - header_bold: Whether header text is bold (default True)
+        - header_alignment: Text alignment for headers (default center)
+        - border_style: Table border style (single, double, none)
+        - alternating_rows: Whether to alternate data row colors
+        - alt_row_bg: Background color for alternating rows (e.g., "D9E2F3")
+
+        Example table config:
+            {
+                "header_bg": "4472C4",      # Blue header background
+                "header_bold": true,         # Bold header text
+                "header_alignment": "center", # Center header text
+                "border_style": "single",    # Single-line borders
+                "alternating_rows": true,    # Alternate row colors
+                "alt_row_bg": "D9E2F3"      # Light blue alt rows
+            }
+
+        When has_header=True, row 0 cells receive header styling. When has_header=False,
+        no cells receive header styling (all cells use normal data cell formatting).
+
+    Rendering to Word:
+        When TableBuilder processes a DocxTable, it:
+        1. Creates Word table with dimensions: len(rows) × max(len(row.cells))
+        2. Applies table style from StyleMapper (e.g., "Table Grid")
+        3. Sets table alignment (typically center)
+        4. Calls _process_cell_merges() to handle vertical/horizontal cell merging
+        5. Iterates through rows, setting is_header_row = (idx == 0) and has_header
+        6. For each cell, calls _fill_cell() with header flag to apply styling:
+            - Header cells: bold, background color, centered alignment
+            - Data cells: normal font, no background (or alternating row color)
+        7. Applies alternating row background colors to non-header rows (if configured)
+        8. Sets minimum row height (400 twips = 20pt) for visible vertical centering
+
+        Example Word rendering:
+            has_header=True:
+                ┌─────────┬─────┬──────────┐
+                │ Name    │ Age │ City     │  ← Bold, blue background (header)
+                ├─────────┼─────┼──────────┤
+                │ Alice   │ 30  │ New York │  ← Normal formatting
+                │ Bob     │ 25  │ London   │  ← Light blue bg (alternating)
+                └─────────┴─────┴──────────┘
+
+            has_header=False:
+                ┌─────────┬─────┬──────────┐
+                │ Alice   │ 30  │ New York │  ← Normal formatting (no header)
+                │ Bob     │ 25  │ London   │  ← Light blue bg (alternating)
+                └─────────┴─────┴──────────┘
+
+    Edge Cases:
+        - Empty rows (rows=[]): Valid, renders as empty table (rare)
+        - Single row with has_header=True: Entire table is a header row (unusual)
+        - Single row with has_header=False: Single data row, no header
+        - Irregular row lengths: Normalized to max column count by TableBuilder
+        - All cells empty: Valid, renders as empty cells with borders
+        - has_header=True with empty rows: No row to be header (renders empty table)
+        - Very wide tables: No hard column limit, but readability degrades beyond ~10 columns
+        - Very tall tables: No hard row limit, but may span multiple Word pages
+
+    Examples:
+        Simple 2×2 table with header:
+            DocxTable(
+                rows=[
+                    DocxTableRow(cells=[
+                        DocxTableCell(content=[TextSpan(text="Name")], is_header=True),
+                        DocxTableCell(content=[TextSpan(text="Age")], is_header=True),
+                    ]),
+                    DocxTableRow(cells=[
+                        DocxTableCell(content=[TextSpan(text="Alice")]),
+                        DocxTableCell(content=[TextSpan(text="30")]),
+                    ]),
+                ],
+                has_header=True
+            )
+
+        Table without header row:
+            DocxTable(
+                rows=[
+                    DocxTableRow(cells=[
+                        DocxTableCell(content=[TextSpan(text="Data 1")]),
+                        DocxTableCell(content=[TextSpan(text="Data 2")]),
+                    ]),
+                    DocxTableRow(cells=[
+                        DocxTableCell(content=[TextSpan(text="Data 3")]),
+                        DocxTableCell(content=[TextSpan(text="Data 4")]),
+                    ]),
+                ],
+                has_header=False
+            )
+
+        Table with cell merging (vertical merge):
+            DocxTable(
+                rows=[
+                    DocxTableRow(cells=[
+                        DocxTableCell(content=[TextSpan(text="Name")], is_header=True),
+                        DocxTableCell(content=[TextSpan(text="Info")], is_header=True),
+                    ]),
+                    DocxTableRow(cells=[
+                        DocxTableCell(content=[TextSpan(text="Alice")]),
+                        DocxTableCell(content=[TextSpan(text="Smart")]),
+                    ]),
+                    DocxTableRow(cells=[
+                        DocxTableCell(content=[], merge_up=True),  # Merges with "Alice"
+                        DocxTableCell(content=[TextSpan(text="Kind")]),
+                    ]),
+                ],
+                has_header=True
+            )
+
+        Table with formatted cell content:
+            DocxTable(
+                rows=[
+                    DocxTableRow(cells=[
+                        DocxTableCell(content=[
+                            TextSpan(text="Name", bold=True)
+                        ], is_header=True),
+                    ]),
+                    DocxTableRow(cells=[
+                        DocxTableCell(content=[
+                            TextSpan(text="Visit "),
+                            TextSpan(text="site", link="https://example.com"),
+                        ]),
+                    ]),
+                ],
+                has_header=True
+            )
+
+        Empty table:
+            DocxTable(rows=[], has_header=True)
+
+    Usage:
+        DocxTable instances are created by DocxRenderer.table() when parsing
+        Markdown table tokens from mistune. The renderer:
+        1. Receives table token with header and body rows from mistune
+        2. Extracts header row cells, setting is_header=True on each cell
+        3. Wraps header cells in DocxTableRow and adds to rows list
+        4. Extracts body row cells, setting is_header=False on each cell
+        5. Wraps each body row cells in DocxTableRow and adds to rows list
+        6. Detects cell merge markers (^^, >>) and sets merge flags
+        7. Returns DocxTable with all rows and has_header=True (Markdown tables always have headers)
+
+        TableBuilder.build() consumes DocxTable to create Word tables:
+        1. Validates rows list (empty table → create 0×0 table and return)
+        2. Calculates dimensions: num_rows, num_cols (max cell count across rows)
+        3. Creates Word table with calculated dimensions
+        4. Applies table style and alignment (center)
+        5. Calls _process_cell_merges() to execute merge operations
+        6. Iterates through rows with row_idx:
+            - Sets is_header_row = (row_idx == 0) and has_header
+            - Sets minimum row height (400 twips)
+            - Iterates through cells, calling _fill_cell() with header flag
+            - Applies alternating row colors (if configured and not header)
+        7. Returns completed Word Table object
+
+    See Also:
+        - DocxTableRow: Individual rows within the table (helper struct)
+        - DocxTableCell: Individual cells within rows (contains content and merge flags)
+        - TableBuilder.build(): Builds Word tables from DocxTable elements
+        - TableBuilder._process_cell_merges(): Handles cell merging (^^, >> markers)
+        - TableBuilder._fill_cell(): Populates cells with content and applies styling
+        - StyleMapper.table_config(): Provides header and border formatting config
+        - StyleMapper.table_style(): Returns Word table style name
+        - TextSpan: Formatted text content within table cells
+    """
 
     rows: list[DocxTableRow]
     has_header: bool = True
