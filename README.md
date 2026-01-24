@@ -98,6 +98,31 @@ curl -X POST http://localhost:8080/api/v1/convert \
   -o output.docx
 ```
 
+### Docker Deployment
+
+```bash
+# Quick start with docker-compose
+docker-compose up -d
+
+# API is now available at http://localhost:8080
+curl -X POST http://localhost:8080/api/v1/convert \
+  -F "file=@document.md" \
+  -F "template=professional" \
+  -o output.docx
+```
+
+**Environment Variables Quick Reference:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `API_PORT` | `8080` | API server port |
+| `API_HOST` | `0.0.0.0` | API server host |
+| `TEMPLATE_DIR` | `/app/templates` | Custom templates directory |
+| `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
+| `MAX_FILE_SIZE` | `10485760` | Max upload size in bytes (10MB default) |
+
+For detailed deployment instructions, volume mounting, production setup, and troubleshooting, see the [Docker Deployment Guide](docs/DOCKER.md).
+
 ## Supported Markdown Features
 
 | Feature | Syntax | Notes |
