@@ -8,7 +8,90 @@ import msgspec
 
 
 class TextSpan(msgspec.Struct, frozen=True):
-    """A span of text with formatting."""
+    """A span of text with inline formatting.
+
+    TextSpan represents the smallest unit of formatted text in the AST. Multiple
+    formatting flags can be combined on a single span, and spans are typically
+    grouped into lists to form paragraph or heading content.
+
+    Attributes:
+        text: The raw text content of this span. May contain newlines for soft/hard
+            breaks. Never None, but can be empty string for zero-width spans.
+        bold: Apply bold formatting (Markdown: **text** or __text__). Can combine
+            with italic, strikethrough, code, and link.
+        italic: Apply italic formatting (Markdown: *text* or _text_). Can combine
+            with bold, strikethrough, code, and link.
+        code: Apply inline code formatting (Markdown: `text`). Renders with monospace
+            font. Can combine with other flags, though typically appears alone except
+            when inside a link.
+        strikethrough: Apply strikethrough formatting (Markdown: ~~text~~). Can
+            combine with bold, italic, code, and link.
+        link: Optional hyperlink URL. When set, the text becomes clickable. Link
+            formatting can combine with all other formatting flags (bold, italic,
+            code, strikethrough), allowing rich formatting of link text.
+
+    Formatting Combination Rules:
+        - All five formatting flags (bold, italic, code, strikethrough) can be
+          combined in any combination on a single TextSpan.
+        - The `link` field is orthogonal to text formatting - it specifies the
+          hyperlink target and can be applied regardless of other formatting.
+        - When multiple formatting flags are True, the renderer applies all of them
+          cumulatively (e.g., bold + italic = bold italic text).
+        - The most common combinations are:
+            * bold + italic (***text***)
+            * bold/italic with link (**[text](url)**)
+            * code with link (`[code](url)`)
+
+    Link and Code Interaction:
+        - code=True with link="url" creates a clickable monospace span
+        - The code flag affects visual rendering (font family, background)
+        - The link flag affects behavior (hyperlink target)
+        - These are independent: you can have code without link, link without code,
+          or both together
+        - Example Markdown: [`code link`](https://example.com) produces
+          TextSpan(text="code link", code=True, link="https://example.com")
+
+    Edge Cases:
+        - Empty text (text=""): Valid, used for zero-width formatting boundaries
+        - Newlines in text: Used for line breaks (linebreak and softbreak tokens)
+        - link="" (empty string): Treated as no link (renderer may handle as None)
+        - All flags False, link=None: Plain unformatted text
+        - All flags True with link: Fully formatted hyperlink (rare but valid)
+
+    Examples:
+        Plain text:
+            TextSpan(text="hello")
+
+        Bold text:
+            TextSpan(text="hello", bold=True)
+
+        Bold italic text (Markdown: ***hello***):
+            TextSpan(text="hello", bold=True, italic=True)
+
+        Inline code (Markdown: `code`):
+            TextSpan(text="code", code=True)
+
+        Bold link (Markdown: **[text](url)**):
+            TextSpan(text="text", bold=True, link="https://example.com")
+
+        Code link (Markdown: [`code`](url)):
+            TextSpan(text="code", code=True, link="https://example.com")
+
+        Complex combination (bold + italic + strikethrough + link):
+            TextSpan(
+                text="fancy",
+                bold=True,
+                italic=True,
+                strikethrough=True,
+                link="https://example.com"
+            )
+
+    Usage:
+        TextSpans are created by DocxRenderer during Markdown parsing and consumed
+        by DocxBuilder when generating Word documents. They are immutable (frozen=True)
+        and should not be modified after creation. To change formatting, create a new
+        TextSpan with the desired attributes.
+    """
 
     text: str
     bold: bool = False
