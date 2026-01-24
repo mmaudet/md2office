@@ -10,15 +10,16 @@ md2office is an open source tool for converting Markdown files to professional W
 
 1. [Installation](#installation)
 2. [Quick Start](#quick-start)
-3. [Supported Markdown Features](#supported-markdown-features)
-4. [Available Templates](#available-templates)
-5. [Style Mapping](#style-mapping)
-6. [Cross-Template Compatibility](#cross-template-compatibility)
-7. [Template Variables](#template-variables)
-8. [REST API](#rest-api)
-9. [Advanced Configuration](#advanced-configuration)
-10. [Troubleshooting](#troubleshooting)
-11. [Support](#support)
+3. [Docker Deployment](#docker-deployment)
+4. [Supported Markdown Features](#supported-markdown-features)
+5. [Available Templates](#available-templates)
+6. [Style Mapping](#style-mapping)
+7. [Cross-Template Compatibility](#cross-template-compatibility)
+8. [Template Variables](#template-variables)
+9. [REST API](#rest-api)
+10. [Advanced Configuration](#advanced-configuration)
+11. [Troubleshooting](#troubleshooting)
+12. [Support](#support)
 
 ## Installation
 
@@ -80,6 +81,41 @@ convert(
     }
 )
 ```
+
+## Docker Deployment
+
+md2office can be deployed as a containerized service using Docker and Docker Compose, providing an isolated and reproducible environment for conversions.
+
+For comprehensive Docker deployment instructions, including production configurations, environment variables, and troubleshooting, see the **[Docker Deployment Guide](DOCKER.md)**.
+
+### Quick Start with Docker Compose
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+
+services:
+  md2office:
+    image: md2office:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - MD2OFFICE_HOST=0.0.0.0
+      - MD2OFFICE_PORT=8080
+      - MD2OFFICE_LOG_LEVEL=info
+    volumes:
+      - ./templates:/app/templates
+      - ./output:/app/output
+```
+
+Then start the service:
+
+```bash
+docker-compose up -d
+```
+
+The API will be available at `http://localhost:8080`.
 
 ## Supported Markdown Features
 
