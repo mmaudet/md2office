@@ -1948,7 +1948,139 @@ class DocxTable(DocxElement, frozen=True, tag="table"):
 
 
 class DocxImage(DocxElement, frozen=True, tag="image"):
-    """Image element."""
+    """Image element with source URL, alternative text, and optional title.
+
+    DocxImage represents embedded images from Markdown image syntax (![alt](url "title")).
+    Images can reference external URLs, local file paths, or data URIs. The alt text
+    provides accessibility support and fallback content when images cannot be displayed.
+    The optional title attribute adds tooltip text in Word documents.
+
+    Attributes:
+        src: The image source URL or file path. Can be:
+            - HTTP/HTTPS URL: https://example.com/image.png (external image)
+            - File path: ./images/diagram.png (relative to document location)
+            - Absolute path: /Users/name/Pictures/photo.jpg (local file system)
+            - Data URI: data:image/png;base64,... (embedded inline image)
+
+            The src field is never None but can be empty string if Markdown has
+            malformed image syntax. When rendering to Word, DocxBuilder validates
+            that the image source is accessible and readable before attempting to
+            insert it into the document.
+
+        alt: Alternative text for accessibility and fallback display. This text:
+            - Appears when the image cannot be loaded or displayed
+            - Provides screen reader description for visually impaired users
+            - Shows in Word's alt text property for accessibility compliance
+            - Defaults to empty string if not specified in Markdown
+
+            While technically optional in Markdown syntax (![](url)), best practice
+            is to always provide meaningful alt text describing the image content
+            and purpose. Empty alt text is valid but reduces accessibility.
+
+        title: Optional tooltip/title text that appears on hover in Word. Extracted
+            from Markdown image syntax after the URL: ![alt](url "hover title").
+            When None, no tooltip is set. When present, Word displays this text when
+            users hover over the image. Common uses include:
+            - Image credits or attribution
+            - Additional context or explanation
+            - Figure numbers or captions (e.g., "Figure 1: Architecture diagram")
+
+            The title is distinct from alt text: alt text is for accessibility and
+            describes what the image shows, while title text provides supplementary
+            information for sighted users.
+
+    Markdown Syntax Examples:
+        Basic image:
+            ![Logo](logo.png) → DocxImage(src="logo.png", alt="Logo", title=None)
+
+        Image with title:
+            ![Chart](chart.png "Sales by Quarter")
+            → DocxImage(src="chart.png", alt="Chart", title="Sales by Quarter")
+
+        External image:
+            ![Photo](https://example.com/photo.jpg)
+            → DocxImage(src="https://example.com/photo.jpg", alt="Photo", title=None)
+
+        Empty alt text (valid but not recommended):
+            ![](diagram.png) → DocxImage(src="diagram.png", alt="", title=None)
+
+    Rendering to Word:
+        When DocxBuilder processes a DocxImage, it:
+        1. Validates that the image source exists and is readable
+        2. Creates a new Word paragraph to contain the image
+        3. Inserts the image using python-docx's add_picture() method
+        4. Sets the alt text property for accessibility (if alt is non-empty)
+        5. Sets the title/tooltip property (if title is not None)
+        6. Optionally resizes the image to fit page width while preserving aspect ratio
+        7. Centers the image paragraph (configurable via styles-mapping.yaml)
+
+        Image sizing follows these rules:
+        - Preserves original aspect ratio (no distortion)
+        - Scales down large images to fit page width (typically 6.5 inches)
+        - Leaves small images at original size (no upscaling)
+        - Respects maximum dimensions from configuration
+
+    Supported Image Formats:
+        Word documents support common image formats via python-docx:
+        - PNG (.png): Recommended for diagrams, logos, screenshots
+        - JPEG (.jpg, .jpeg): Recommended for photos
+        - GIF (.gif): Supported but may lose animation
+        - BMP (.bmp): Supported but creates large file sizes
+        - TIFF (.tiff): Supported for high-quality images
+        - SVG (.svg): NOT supported by python-docx (must be converted to PNG/JPEG)
+
+        Data URIs (base64-encoded images) are supported but increase document
+        file size significantly and should be used sparingly.
+
+    Edge Cases:
+        - src="" (empty): Valid but image won't render; DocxBuilder may skip or warn
+        - alt="" (empty): Valid but reduces accessibility; image has no description
+        - title="" (empty string): Treated as None (no tooltip)
+        - Missing file: DocxBuilder logs warning and skips image to avoid crashing
+        - Invalid URL: DocxBuilder handles gracefully (may skip or use placeholder)
+        - Very large images: Automatically scaled down to fit page width
+        - Unsupported format (SVG): DocxBuilder may skip or attempt conversion
+
+    Examples:
+        Simple diagram:
+            DocxImage(
+                src="./diagrams/architecture.png",
+                alt="System architecture diagram showing three-tier design",
+                title=None
+            )
+
+        External photo with title:
+            DocxImage(
+                src="https://example.com/team-photo.jpg",
+                alt="Engineering team at 2024 offsite",
+                title="Photo credit: Jane Smith"
+            )
+
+        Data URI for small icon:
+            DocxImage(
+                src="data:image/png;base64,iVBORw0KGgoAAAANS...",
+                alt="Success checkmark icon",
+                title="Indicates successful completion"
+            )
+
+        Markdown screenshot (common in technical docs):
+            DocxImage(
+                src="./screenshots/login-screen.png",
+                alt="Application login screen with username and password fields",
+                title="Figure 1: Login interface"
+            )
+
+    Usage:
+        DocxImage instances are created by DocxRenderer.image() when parsing Markdown
+        image syntax. The renderer extracts src, alt, and title from the mistune token
+        attributes and constructs the DocxImage element. DocxBuilder then processes
+        these elements to insert actual images into the Word document using python-docx.
+
+    See Also:
+        - DocxParagraph: Images are inserted as their own paragraphs
+        - DocxBuilder._build_image(): Handles Word document image insertion
+        - python-docx add_picture(): Underlying Word image API
+    """
 
     src: str
     alt: str = ""
@@ -1956,7 +2088,155 @@ class DocxImage(DocxElement, frozen=True, tag="image"):
 
 
 class DocxHorizontalRule(DocxElement, frozen=True, tag="hr"):
-    """Horizontal rule / thematic break."""
+    """Horizontal rule element representing a thematic break or section divider.
+
+    DocxHorizontalRule represents Markdown horizontal rules (also called thematic
+    breaks), created by three or more hyphens (---), asterisks (***), or underscores
+    (___) on a line by themselves. These elements visually separate document sections
+    and indicate a thematic shift in content, similar to an HTML <hr> tag or a scene
+    break in fiction writing.
+
+    This element has no attributes - it's a simple marker indicating "insert horizontal
+    line here". The visual appearance (line style, thickness, color, spacing) is
+    controlled entirely by Word document styling configured in styles-mapping.yaml
+    and applied by DocxBuilder.
+
+    Markdown Syntax:
+        All of these produce DocxHorizontalRule:
+
+        Three hyphens:
+            ---
+
+        Three asterisks:
+            ***
+
+        Three underscores:
+            ___
+
+        More than three (any of the above):
+            -----
+            *****
+            _____
+
+        With spaces between:
+            - - -
+            * * *
+            _ _ _
+
+        All variations are equivalent and produce the same DocxHorizontalRule
+        element. The choice of character (-, *, _) and quantity (3+) is purely
+        stylistic in Markdown - they all render identically in Word documents.
+
+    Rendering to Word:
+        When DocxBuilder processes a DocxHorizontalRule, it:
+        1. Creates a new Word paragraph
+        2. Applies the "Horizontal Rule" style from styles-mapping.yaml
+        3. Inserts a horizontal line using one of these methods:
+           - Border on paragraph (top or bottom border styled as line)
+           - Special character (em dash or horizontal line Unicode character)
+           - Shape object (actual line drawing, if supported)
+
+        The exact rendering method depends on DocxBuilder implementation and
+        style configuration. Common approaches:
+        - Single-line paragraph border: Lightweight, clean, adjusts to page width
+        - Repeated characters (e.g., em dashes): Simple but less elegant
+        - Word shape: Most flexible but more complex
+
+        Styling options (configured in styles-mapping.yaml):
+        - Line thickness (border width)
+        - Line color (border color or font color)
+        - Line style (solid, dashed, dotted, double)
+        - Spacing above and below (paragraph spacing)
+        - Alignment (left, center, right, full width)
+        - Width (full page width vs. partial width)
+
+    Common Use Cases:
+        1. Section dividers: Separate major sections in long documents
+            Example:
+                # Chapter 1
+                Content here...
+                ---
+                # Chapter 2
+                More content...
+
+        2. Topic transitions: Signal shift in topic within a section
+            Example:
+                Discussing feature A...
+                ***
+                Now discussing feature B...
+
+        3. Visual breaks: Add visual breathing room in dense content
+            Example:
+                Technical explanation...
+                ___
+                Related example...
+
+        4. Signature lines: Separate signature blocks in formal documents
+            Example:
+                Sincerely,
+                ---
+                John Doe
+
+    Edge Cases:
+        - Multiple consecutive horizontal rules: Each renders as separate line
+          (though this is unusual and may indicate formatting mistake)
+        - Horizontal rule at start/end of document: Valid, renders normally
+        - Inside blockquotes or lists: Valid in Markdown, but some parsers
+          may handle differently (mistune treats as thematic break regardless)
+        - Very narrow page: Line adjusts to available width automatically
+
+    Semantic Meaning:
+        Unlike a simple blank line (which adds vertical space), a horizontal rule
+        carries semantic meaning: it indicates a thematic break or transition in
+        content. This is important for:
+        - Document structure: Signals topic boundaries to readers
+        - Screen readers: May announce "horizontal rule" or "section break"
+        - Accessibility: Provides structural landmark for navigation
+        - Conversion: Preserves semantic meaning when converting between formats
+
+    Examples:
+        Section divider in chapter:
+            Markdown:
+                ## Introduction
+                This chapter covers...
+                ---
+                ## Getting Started
+                First, install...
+
+            AST:
+                [
+                    DocxHeading(level=2, content=[...], anchor="introduction"),
+                    DocxParagraph(content=[...]),
+                    DocxHorizontalRule(),
+                    DocxHeading(level=2, content=[...], anchor="getting-started"),
+                    DocxParagraph(content=[...]),
+                ]
+
+        Separating related sections:
+            Markdown:
+                API v1 is deprecated.
+                ***
+                API v2 is recommended for new projects.
+
+            AST:
+                [
+                    DocxParagraph(content=[TextSpan(text="API v1 is deprecated.")]),
+                    DocxHorizontalRule(),
+                    DocxParagraph(content=[TextSpan(text="API v2 is recommended...")]),
+                ]
+
+    Usage:
+        DocxHorizontalRule instances are created by DocxRenderer.thematic_break()
+        when parsing Markdown thematic break syntax (---, ***, ___). Since the
+        element has no attributes, creation is trivial: simply return a new
+        DocxHorizontalRule() instance. DocxBuilder._build_horizontal_rule() then
+        handles inserting the visual line into the Word document.
+
+    See Also:
+        - DocxParagraph: Horizontal rules are distinct from empty paragraphs
+        - DocxBuilder._build_horizontal_rule(): Word document rendering logic
+        - styles-mapping.yaml: Configuration for horizontal rule visual styling
+    """
 
     pass
 
@@ -1965,7 +2245,273 @@ AdmonitionType = Literal["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"]
 
 
 class DocxAdmonition(DocxElement, frozen=True, tag="admonition"):
-    """Admonition/callout block (NOTE, WARNING, etc.)."""
+    """Admonition/callout block for highlighted notes, warnings, and tips.
+
+    DocxAdmonition represents GitHub-style admonition/callout blocks that highlight
+    important information with visual styling. These are created using Markdown
+    blockquote syntax with special markers like `> [!NOTE]`, `> [!WARNING]`, etc.
+    Admonitions render as styled tables in Word documents with colored borders,
+    backgrounds, and icons to draw attention to critical information.
+
+    Admonitions are commonly used in technical documentation to:
+    - Highlight important warnings or cautions
+    - Provide helpful tips or best practices
+    - Emphasize critical notes or prerequisites
+    - Call out important information that shouldn't be missed
+
+    Attributes:
+        admonition_type: The type of admonition, which determines visual styling
+            (color, icon, semantic meaning). Must be one of five predefined types:
+
+            - "NOTE": General information, neutral tone. Blue styling (default).
+              Use for supplementary information, clarifications, or context that
+              readers should be aware of but isn't critical.
+              Example: "Note: This feature requires Python 3.11 or higher."
+
+            - "TIP": Helpful suggestions or best practices. Green styling.
+              Use for optional optimizations, shortcuts, or recommendations that
+              improve the user experience but aren't strictly necessary.
+              Example: "Tip: Enable caching to improve performance by 50%."
+
+            - "IMPORTANT": Critical information that must not be ignored. Purple styling.
+              Use for essential information that significantly affects outcomes,
+              key prerequisites, or important concepts that are easy to overlook.
+              Example: "Important: Back up your data before upgrading."
+
+            - "WARNING": Alerts about potential problems or risks. Orange styling.
+              Use for actions that might cause issues, limitations, or situations
+              where users need to proceed with caution.
+              Example: "Warning: This operation cannot be undone."
+
+            - "CAUTION": Severe warnings about dangerous or destructive actions. Red styling.
+              Use for operations that could cause data loss, security vulnerabilities,
+              or system damage if performed incorrectly.
+              Example: "Caution: Running this command will delete all user data."
+
+            The type is case-insensitive in Markdown ([!note], [!NOTE], [!Note] all
+            work) but normalized to uppercase by DocxRenderer. Visual styling (colors,
+            icons, background) is configured in styles-mapping.yaml under the
+            "admonitions" section and applied by AdmonitionBuilder.
+
+        title: Optional custom title text for the admonition. When specified, appears
+            as bold text at the start of the admonition content. When None, no explicit
+            title is shown (only the admonition type is indicated by icon and styling).
+
+            Title extraction from Markdown:
+            - `> [!NOTE]` → title=None (no custom title)
+            - `> [!NOTE] Custom Title` → title="Custom Title"
+            - `> [!WARNING] Database Migration` → title="Database Migration"
+
+            The title is extracted by DocxRenderer from text following the admonition
+            marker on the same line. If present, it's stored separately from the
+            content and typically rendered with bold or emphasized styling.
+
+            When title is None, some rendering implementations may use the admonition
+            type as a default title (e.g., showing "Note:" or "Warning:"), but this
+            behavior is controlled by AdmonitionBuilder, not the AST element itself.
+
+        children: List of block-level elements contained within the admonition.
+            Can include paragraphs, lists, code blocks, or other block elements.
+            The children list is never None but can be empty (though empty admonitions
+            are rare and may indicate malformed Markdown).
+
+            Typical patterns:
+            - Single paragraph: Most common, simple note with one sentence
+            - Multiple paragraphs: Longer explanation or multi-part warning
+            - List inside admonition: Enumerated steps or multiple points
+            - Code block inside admonition: Example or command to note
+            - Mixed content: Paragraphs, lists, and code combined
+
+            All children are rendered within the admonition's styled container
+            (typically a colored table cell in Word), inheriting the admonition's
+            visual styling (background color, text color, border).
+
+    GitHub-Style Markdown Syntax:
+        Admonitions use blockquote syntax with special markers:
+
+        Basic admonition (no custom title):
+            > [!NOTE]
+            > This is important information to note.
+
+        Admonition with custom title:
+            > [!WARNING] Database Changes
+            > This operation will modify the database schema.
+
+        Multi-paragraph admonition:
+            > [!TIP]
+            > First paragraph of the tip.
+            >
+            > Second paragraph with more details.
+
+        Admonition with list:
+            > [!IMPORTANT]
+            > Before proceeding, ensure:
+            > - You have admin access
+            > - The database is backed up
+            > - All users are logged out
+
+        Admonition with code block:
+            > [!CAUTION]
+            > Do not run this command in production:
+            > ```bash
+            > rm -rf /
+            > ```
+
+        The `> ` prefix on each line is standard blockquote syntax. The `[!TYPE]`
+        marker on the first line signals an admonition. Text after the marker
+        becomes the custom title (if present).
+
+    Rendering to Word:
+        When DocxBuilder processes a DocxAdmonition, it delegates to AdmonitionBuilder,
+        which:
+        1. Creates a two-column table (icon column + content column)
+        2. Applies background color based on admonition type (from styles-mapping.yaml)
+        3. Inserts a colored left border (3pt thick, type-specific color)
+        4. Adds an icon in the left cell (e.g., "i" for NOTE, "!" for WARNING)
+        5. Renders children elements in the right cell with appropriate styling
+        6. Centers icon vertically and horizontally in its cell
+        7. Applies text color matching the admonition type
+
+        Color scheme (default, configurable in styles-mapping.yaml):
+        - NOTE: Blue (#0969DA background, #DDF4FF border)
+        - TIP: Green (#1F883D background, #D1F4DD border)
+        - IMPORTANT: Purple (#8250DF background, #EAD9FF border)
+        - WARNING: Orange (#9A6700 background, #FFF8C5 border)
+        - CAUTION: Red (#CF222E background, #FFDBDB border)
+
+        The table structure ensures:
+        - Icon and content are visually aligned
+        - Background color fills entire admonition area
+        - Border clearly marks admonition boundaries
+        - Content can wrap and flow naturally
+
+    Comparison with DocxBlockquote:
+        Both admonitions and blockquotes use Markdown blockquote syntax (`> `), but
+        they are semantically and visually different:
+
+        DocxBlockquote:
+        - Plain quotation or indented content
+        - No special markers (`[!TYPE]`)
+        - Simple indentation styling in Word
+        - Used for citations, quotes, or generic indentation
+
+        DocxAdmonition:
+        - Highlighted callout with semantic type
+        - Requires `[!TYPE]` marker
+        - Rich visual styling (colors, icons, borders)
+        - Used for warnings, tips, important notes
+
+        DocxRenderer distinguishes between them by checking for the `[!TYPE]` pattern
+        in the first paragraph of a blockquote. If found, it creates a DocxAdmonition;
+        otherwise, it creates a DocxBlockquote.
+
+    Edge Cases:
+        - Empty children list: Valid but unusual, renders as empty styled box
+        - title="" (empty string): Treated as None (no custom title)
+        - Invalid admonition type: Not possible due to Literal type constraint,
+          but renderer validation ensures only valid types are used
+        - Nested admonitions: Markdown doesn't support this well; typically results
+          in nested blockquote content rather than nested admonitions
+        - Admonition as first/last element: Valid, renders normally
+        - Very long content: Table cell expands vertically to accommodate all children
+
+    Examples:
+        Simple note:
+            Markdown:
+                > [!NOTE]
+                > Remember to save your work frequently.
+
+            AST:
+                DocxAdmonition(
+                    admonition_type="NOTE",
+                    title=None,
+                    children=[
+                        DocxParagraph(content=[
+                            TextSpan(text="Remember to save your work frequently.")
+                        ])
+                    ]
+                )
+
+        Warning with custom title:
+            Markdown:
+                > [!WARNING] Breaking Change
+                > Version 2.0 removes deprecated APIs.
+
+            AST:
+                DocxAdmonition(
+                    admonition_type="WARNING",
+                    title="Breaking Change",
+                    children=[
+                        DocxParagraph(content=[
+                            TextSpan(text="Version 2.0 removes deprecated APIs.")
+                        ])
+                    ]
+                )
+
+        Multi-paragraph tip:
+            Markdown:
+                > [!TIP]
+                > Use keyboard shortcuts to work faster.
+                >
+                > Press Ctrl+S to save, Ctrl+Z to undo.
+
+            AST:
+                DocxAdmonition(
+                    admonition_type="TIP",
+                    title=None,
+                    children=[
+                        DocxParagraph(content=[
+                            TextSpan(text="Use keyboard shortcuts to work faster.")
+                        ]),
+                        DocxParagraph(content=[
+                            TextSpan(text="Press Ctrl+S to save, Ctrl+Z to undo.")
+                        ])
+                    ]
+                )
+
+        Important note with list:
+            Markdown:
+                > [!IMPORTANT] Prerequisites
+                > - Python 3.11+
+                > - 2GB free disk space
+                > - Admin permissions
+
+            AST:
+                DocxAdmonition(
+                    admonition_type="IMPORTANT",
+                    title="Prerequisites",
+                    children=[
+                        DocxList(
+                            ordered=False,
+                            items=[
+                                DocxListItem(content=[...]),
+                                DocxListItem(content=[...]),
+                                DocxListItem(content=[...]),
+                            ]
+                        )
+                    ]
+                )
+
+    Usage:
+        DocxAdmonition instances are created by DocxRenderer.block_quote() when
+        parsing Markdown blockquotes that start with the `[!TYPE]` pattern. The
+        renderer:
+        1. Parses blockquote children to get list of elements
+        2. Checks if first paragraph starts with ADMONITION_PATTERN regex
+        3. Extracts admonition type and optional title from the match
+        4. Removes the `[!TYPE]` marker from content
+        5. Returns DocxAdmonition with type, title, and children
+        6. If no match, returns DocxBlockquote instead
+
+        AdmonitionBuilder.build() then processes DocxAdmonition elements to create
+        styled tables in Word documents with appropriate colors, icons, and formatting.
+
+    See Also:
+        - DocxBlockquote: Plain blockquotes without admonition markers
+        - AdmonitionBuilder: Handles Word document rendering for admonitions
+        - DocxRenderer.block_quote(): Creates admonitions from Markdown
+        - styles-mapping.yaml: Configures admonition colors and styling
+    """
 
     admonition_type: AdmonitionType
     title: str | None = None
