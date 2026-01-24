@@ -1,4 +1,186 @@
-"""AST element classes for intermediate representation."""
+"""AST element classes for intermediate representation.
+
+This module defines the Abstract Syntax Tree (AST) elements that serve as the
+intermediate representation between Markdown parsing and DOCX generation in the
+md2office conversion pipeline.
+
+## Purpose
+
+The AST elements in this module represent the structural and semantic components
+of a Markdown document in a format optimized for Word document generation. Rather
+than working directly with raw Markdown text or mistune's token stream, md2office
+uses these typed, immutable data structures to:
+
+1. **Decouple parsing from rendering**: The parser (DocxRenderer) produces AST
+   elements, and the builder (DocxBuilder) consumes them, allowing each component
+   to evolve independently.
+
+2. **Type safety**: All elements use msgspec structs with strict typing, enabling
+   static analysis and runtime validation.
+
+3. **Serialization**: Elements can be efficiently serialized to JSON for caching,
+   API responses, or debugging, thanks to msgspec's high-performance encoding.
+
+4. **Immutability**: Frozen structs ensure elements cannot be accidentally modified
+   during processing, preventing bugs and enabling safe concurrent processing.
+
+## Architecture
+
+The module defines two categories of structures:
+
+### Block-level Elements (inherit from DocxElement)
+
+Block-level elements represent Markdown constructs that appear as distinct blocks
+in the document flow:
+
+- **DocxHeading**: H1-H6 headings with optional anchor IDs
+- **DocxParagraph**: Text paragraphs with inline formatting
+- **DocxCodeBlock**: Fenced or indented code blocks with syntax highlighting
+- **DocxBlockquote**: Blockquotes that can contain nested block elements
+- **DocxList**: Ordered or unordered lists with nested items
+- **DocxTable**: Tables with rows, cells, and formatting options
+- **DocxImage**: Image references with alt text and optional titles
+- **DocxHorizontalRule**: Thematic breaks (rendered as horizontal lines)
+- **DocxAdmonition**: Callout blocks (NOTE, WARNING, TIP, etc.)
+
+### Inline and Helper Structures
+
+These structures support block-level elements but do not inherit from DocxElement:
+
+- **TextSpan**: Inline formatted text with bold, italic, code, strikethrough, and
+  link formatting
+- **DocxListItem**: Individual list items (wrapped by DocxList)
+- **DocxTableRow**: Table rows (wrapped by DocxTable)
+- **DocxTableCell**: Table cells (wrapped by DocxTableRow)
+
+## Data Flow
+
+The AST elements bridge the parser and builder components in the conversion pipeline:
+
+```
+Markdown Input
+      ↓
+DocxRenderer (parser/renderer.py)
+  - Parses Markdown using mistune
+  - Creates AST elements from tokens
+  - Builds Document (list[DocxElement])
+      ↓
+Document (list[DocxElement])
+  - Intermediate representation
+  - Type-safe, serializable, immutable
+  - Independent of parser and builder
+      ↓
+DocxBuilder (builder/docx_builder.py)
+  - Consumes AST elements
+  - Applies style mapping from config
+  - Generates Word document using python-docx
+      ↓
+DOCX Output
+```
+
+## Basic Usage
+
+### Creating Elements
+
+Elements are typically created by DocxRenderer during parsing, but can be
+constructed directly for testing or programmatic document generation:
+
+```python
+from md2office.parser.elements import (
+    Document,
+    DocxHeading,
+    DocxParagraph,
+    TextSpan,
+)
+
+# Create a simple document with a heading and paragraph
+doc: Document = [
+    DocxHeading(
+        level=1,
+        content=[TextSpan(text="Welcome to md2office")],
+    ),
+    DocxParagraph(
+        content=[
+            TextSpan(text="This is a "),
+            TextSpan(text="bold", bold=True),
+            TextSpan(text=" and "),
+            TextSpan(text="italic", italic=True),
+            TextSpan(text=" example."),
+        ]
+    ),
+]
+
+# Elements are immutable (frozen=True)
+# doc[0].level = 2  # ❌ Raises FrozenInstanceError
+
+# Document is just a type alias for list[DocxElement]
+assert isinstance(doc, list)
+assert all(isinstance(elem, DocxElement) for elem in doc)
+```
+
+### Working with TextSpan Formatting
+
+```python
+# Plain text
+plain = TextSpan(text="hello")
+
+# Combined formatting
+bold_italic = TextSpan(text="important", bold=True, italic=True)
+
+# Inline code with link
+code_link = TextSpan(
+    text="click here",
+    code=True,
+    link="https://example.com"
+)
+```
+
+### Pattern Matching (Python 3.10+)
+
+```python
+for element in doc:
+    match element:
+        case DocxHeading(level=1, content=spans):
+            print(f"H1: {spans[0].text}")
+        case DocxParagraph(content=spans):
+            print(f"Paragraph: {len(spans)} spans")
+        case DocxTable(rows=rows):
+            print(f"Table: {len(rows)} rows")
+```
+
+## Implementation Details
+
+### msgspec Tagged Unions
+
+All block-level elements use msgspec's tagged union feature (`tag=True` on
+DocxElement base class). This enables:
+
+- **Type discrimination**: Each element type has a unique tag (e.g., "heading",
+  "paragraph", "table")
+- **Efficient serialization**: msgspec automatically serializes/deserializes
+  to the correct subclass
+- **Type safety**: Static type checkers can verify element types in Document lists
+
+### Immutability
+
+All elements are frozen (`frozen=True`), providing:
+
+- **Thread safety**: Safe to share across threads
+- **Hashability**: Can be used as dict keys or in sets
+- **Performance**: msgspec optimizes frozen structs with __slots__
+
+### The Document Type
+
+The `Document` type alias (`Document = list[DocxElement]`) represents a complete
+parsed Markdown document as a sequence of block-level elements. This is the
+primary output of DocxRenderer and input to DocxBuilder.
+
+## See Also
+
+- **parser/renderer.py**: DocxRenderer creates AST elements from Markdown
+- **builder/docx_builder.py**: DocxBuilder consumes AST elements to build Word docs
+- **msgspec documentation**: https://jcristharif.com/msgspec/
+"""
 
 from __future__ import annotations
 
