@@ -797,14 +797,483 @@ class DocxBlockquote(DocxElement, frozen=True, tag="blockquote"):
 
 
 class DocxListItem(msgspec.Struct, frozen=True):
-    """A single list item."""
+    """Individual list item with content and optional nested elements.
+
+    DocxListItem represents a single item within a DocxList (ordered or unordered).
+    Each item has primary text content (list of TextSpan) and can optionally contain
+    nested block-level elements (paragraphs, sublists, code blocks, etc.). This
+    structure enables complex nested lists and mixed content within list items,
+    matching Markdown's flexible list syntax.
+
+    Note: DocxListItem is a helper struct and does NOT inherit from DocxElement.
+    It is wrapped by DocxList, which is the actual block-level element in the AST.
+    List items cannot exist independently - they must be contained within a parent
+    DocxList.
+
+    Attributes:
+        content: List of TextSpan objects forming the primary text of this list item.
+            Supports all inline formatting (bold, italic, links, code, strikethrough).
+            This is the text that appears on the same line as the bullet/number marker.
+            Never None, but can be empty list (though empty items are uncommon).
+            Multiple spans allow mixed formatting within a single item.
+
+            Examples of content:
+            - Plain text: [TextSpan(text="Item text")]
+            - Formatted: [TextSpan(text="Bold ", bold=True), TextSpan(text="item")]
+            - With link: [TextSpan(text="See "), TextSpan(text="docs", link="url")]
+            - Empty: [] (valid but rare, renders as blank list item)
+
+        children: List of nested DocxElement blocks that appear after the primary
+            content, indented under this list item. Enables complex nested structures
+            like multi-paragraph list items, sublists, code blocks within items, etc.
+            Defaults to empty list via msgspec.field(default_factory=list).
+
+            Common nested elements:
+            - DocxList: Nested sublists (ordered or unordered) for hierarchical structure
+            - DocxParagraph: Additional paragraphs continuing the list item content
+            - DocxCodeBlock: Code examples within a list item
+            - DocxTable: Tables nested under a list item (rare but valid)
+            - DocxImage: Images within list items
+            - Any other DocxElement: Full nesting support for all block types
+
+            Nesting behavior:
+            - Children are rendered indented beneath the item's primary content
+            - Each child element is built recursively by DocxBuilder
+            - Nested DocxList items are rendered with increased indentation level
+            - Empty children list (default): Simple list item with only content text
+            - Non-empty children: Complex list item with nested blocks
+
+    List Item Structure:
+        Markdown list items can have two forms:
+
+        Simple (no children):
+            - Item text
+            content=[TextSpan(text="Item text")]
+            children=[]
+
+        Complex (with nested elements):
+            - Item text
+
+              Additional paragraph
+
+              ```
+              code block
+              ```
+
+              - Nested item
+            content=[TextSpan(text="Item text")]
+            children=[
+                DocxParagraph(content=[...]),
+                DocxCodeBlock(code="code block", language=None),
+                DocxList(ordered=False, items=[...]),
+            ]
+
+        The parser automatically handles blank lines and indentation to determine
+        which elements are nested children vs. separate top-level elements.
+
+    Nesting and Indentation:
+        The children field is what enables Markdown's nested list syntax:
+
+        Markdown:
+            1. First item
+            2. Second item
+               - Nested bullet
+               - Another nested bullet
+            3. Third item
+
+        AST:
+            DocxList(ordered=True, items=[
+                DocxListItem(content=[TextSpan(text="First item")], children=[]),
+                DocxListItem(
+                    content=[TextSpan(text="Second item")],
+                    children=[
+                        DocxList(ordered=False, items=[
+                            DocxListItem(content=[TextSpan(text="Nested bullet")]),
+                            DocxListItem(content=[TextSpan(text="Another nested bullet")]),
+                        ])
+                    ]
+                ),
+                DocxListItem(content=[TextSpan(text="Third item")], children=[]),
+            ])
+
+        When building Word documents, ListBuilder.build() recursively processes
+        children lists, increasing the indentation level for each nesting depth.
+        This creates the visual hierarchy that matches Markdown's structure.
+
+    Rendering to Word:
+        When ListBuilder processes a DocxListItem, it:
+        1. Creates a Word paragraph for the item content with bullet/number prefix
+        2. Applies indentation based on nesting level (0.35 inch per level)
+        3. Adds TextSpan content as formatted runs
+        4. Recursively builds all children elements with increased indentation
+        5. Nested DocxList children are built with level+1 indentation
+
+        Example rendering:
+            Simple item:
+                content=[TextSpan(text="Item")]
+                children=[]
+                → "- Item" (unordered) or "1. Item" (ordered)
+
+            Item with nested list:
+                content=[TextSpan(text="Parent")]
+                children=[DocxList(ordered=False, items=[...])]
+                → "1. Parent"
+                  "    - Nested child"
+
+    Edge Cases:
+        - Empty content (content=[]): Valid, renders as bullet/number with no text
+        - Empty children (children=[]): Default, simple list item with just content
+        - Both empty: Valid but renders as blank list item (rare)
+        - Very deep nesting: No hard limit, but readability degrades beyond 3-4 levels
+        - Mixed children types: All valid, each rendered appropriately
+        - Nested list as only child: Common pattern for hierarchical lists
+        - Multiple nested lists: Valid, each rendered sequentially
+
+    Examples:
+        Simple list item:
+            DocxListItem(
+                content=[TextSpan(text="Simple item")],
+                children=[]
+            )
+
+        Formatted list item (Markdown: - This is **bold** text):
+            DocxListItem(
+                content=[
+                    TextSpan(text="This is "),
+                    TextSpan(text="bold", bold=True),
+                    TextSpan(text=" text"),
+                ],
+                children=[]
+            )
+
+        List item with nested sublist:
+            DocxListItem(
+                content=[TextSpan(text="Parent item")],
+                children=[
+                    DocxList(ordered=False, items=[
+                        DocxListItem(content=[TextSpan(text="Nested 1")]),
+                        DocxListItem(content=[TextSpan(text="Nested 2")]),
+                    ])
+                ]
+            )
+
+        List item with multiple nested elements:
+            DocxListItem(
+                content=[TextSpan(text="Main point")],
+                children=[
+                    DocxParagraph(content=[TextSpan(text="Explanation paragraph")]),
+                    DocxCodeBlock(code="example code", language="python"),
+                ]
+            )
+
+        Empty list item:
+            DocxListItem(
+                content=[],
+                children=[]
+            )
+
+    Usage:
+        DocxListItem instances are created by DocxRenderer.list_item() when parsing
+        Markdown list item tokens from mistune. The renderer:
+        1. Receives list item token with children from mistune
+        2. Renders inline children to get content TextSpans
+        3. Renders block children (if any) to get nested DocxElements
+        4. Separates inline content from block children
+        5. Returns DocxListItem with content and children populated
+
+        ListBuilder._build_list_item() consumes DocxListItem to create Word paragraphs:
+        1. Creates Word paragraph with bullet/number prefix based on parent list type
+        2. Applies indentation based on nesting level
+        3. Adds content TextSpans as formatted runs
+        4. After the item paragraph, recursively builds children with increased level
+        5. Returns the item paragraph (children are added separately to document)
+
+    See Also:
+        - DocxList: Parent container for list items (the actual block element)
+        - TextSpan: Inline formatted text used in item content
+        - DocxRenderer.list_item(): Creates DocxListItem from Markdown tokens
+        - ListBuilder._build_list_item(): Builds Word paragraph from list item
+        - ListBuilder.build(): Recursively builds lists with nesting support
+    """
 
     content: list[TextSpan]
     children: list[DocxElement] = msgspec.field(default_factory=list)
 
 
 class DocxList(DocxElement, frozen=True, tag="list"):
-    """Ordered or unordered list."""
+    """Ordered (numbered) or unordered (bulleted) list with optional start number.
+
+    DocxList represents both ordered and unordered lists in the Markdown AST. It
+    contains a sequence of DocxListItem elements and supports nested sublists through
+    the children field of each item. Lists can start at any number (for ordered lists)
+    and support arbitrary nesting depth, enabling complex hierarchical structures.
+
+    Attributes:
+        ordered: Boolean flag distinguishing ordered from unordered lists.
+            - True: Ordered list (numbered) - Markdown: 1. item, 2. item, etc.
+            - False: Unordered list (bulleted) - Markdown: - item, * item, + item
+
+            Ordered vs Unordered:
+            Ordered lists (ordered=True):
+                - Display sequential numbers: 1., 2., 3., etc.
+                - Numbers increment automatically for each item
+                - Start number controlled by `start` attribute
+                - Markdown syntax: "1. item" or "1) item"
+                - Common for steps, procedures, rankings, sequences
+
+            Unordered lists (ordered=False):
+                - Display bullet markers: -, *, or • (depends on Word style)
+                - All items use same marker (no numbering)
+                - `start` attribute ignored for unordered lists
+                - Markdown syntax: "- item", "* item", or "+ item"
+                - Common for feature lists, bullet points, non-sequential items
+
+            The `ordered` flag is extracted from mistune's token.get("attrs", {}).get("ordered")
+            during parsing and determines which list style is applied in Word.
+
+        items: List of DocxListItem objects representing the individual list entries.
+            Each item has its own content (TextSpans) and optional nested children
+            (including nested sublists). Never None, but can be empty list (though
+            empty lists are rare in practice). The order of items in this list
+            determines their rendering order in the Word document.
+
+            Item structure:
+            - Simple items: Just content text, no children
+            - Complex items: Content text plus nested elements (paragraphs, sublists, code)
+            - Mixed: Some items simple, others complex within same list
+
+            Nested sublists:
+            Items can contain nested DocxList objects in their children field, creating
+            hierarchical list structures with arbitrary nesting depth. Each nesting
+            level increases indentation in the rendered Word document.
+
+        start: Starting number for ordered lists (defaults to 1). This attribute
+            controls the first number displayed in an ordered list sequence. Subsequent
+            items increment automatically: start=5 produces 5., 6., 7., etc.
+
+            Behavior by list type:
+            - Ordered lists (ordered=True): `start` sets the initial number
+                * start=1 (default): 1., 2., 3., ... (standard numbering)
+                * start=5: 5., 6., 7., ... (continue from previous section)
+                * start=0: 0., 1., 2., ... (zero-indexed lists)
+                * Any positive integer: Starts from that number
+            - Unordered lists (ordered=False): `start` is ignored
+                * Value has no effect on rendering (always bullets)
+                * Typically left at default value of 1
+
+            Common use cases:
+            - start=1 (default): Standard numbering from 1
+            - start>1: Continue numbering from previous list (split by paragraphs)
+            - start=0: Zero-indexed numbering (programming contexts)
+
+            Markdown support:
+            GitHub-flavored Markdown allows specifying start numbers:
+                5. First item    → start=5, renders as "5. First item"
+                6. Second item   → renders as "6. Second item"
+                1. Restart       → start=1, renders as "1. Restart"
+
+            The mistune parser extracts start from token.get("attrs", {}).get("start", 1)
+            and DocxRenderer passes it through to DocxList. ListBuilder uses it to
+            calculate item numbers: number = idx + start for item at index idx.
+
+    List Types and Markdown Syntax:
+        Markdown supports multiple syntaxes that all map to ordered/unordered:
+
+        Unordered (ordered=False):
+            - Dash syntax:   - item
+            - Star syntax:   * item
+            - Plus syntax:   + item
+            All produce: DocxList(ordered=False, items=[...], start=1)
+
+        Ordered (ordered=True):
+            - Number syntax: 1. item
+            - Paren syntax:  1) item
+            Both produce: DocxList(ordered=True, items=[...], start=1)
+
+        The specific marker (-, *, +) or number format (., )) doesn't affect the AST -
+        only the ordered flag matters. Word rendering uses configured list styles.
+
+    Nesting and Hierarchy:
+        Lists support arbitrary nesting through DocxListItem.children:
+
+        Markdown:
+            1. First item
+            2. Second item
+               - Nested bullet
+               - Another bullet
+                 1. Deeply nested
+            3. Third item
+
+        AST:
+            DocxList(ordered=True, start=1, items=[
+                DocxListItem(content=[TextSpan(text="First item")]),
+                DocxListItem(
+                    content=[TextSpan(text="Second item")],
+                    children=[
+                        DocxList(ordered=False, items=[
+                            DocxListItem(
+                                content=[TextSpan(text="Nested bullet")],
+                            ),
+                            DocxListItem(
+                                content=[TextSpan(text="Another bullet")],
+                                children=[
+                                    DocxList(ordered=True, start=1, items=[
+                                        DocxListItem(content=[TextSpan(text="Deeply nested")]),
+                                    ])
+                                ]
+                            ),
+                        ])
+                    ]
+                ),
+                DocxListItem(content=[TextSpan(text="Third item")]),
+            ])
+
+        ListBuilder.build() recursively processes nested lists, increasing indentation
+        level for each nesting depth (0.35 inch per level).
+
+    Rendering to Word:
+        When ListBuilder processes a DocxList, it:
+        1. Determines list style based on ordered flag (List Number vs List Bullet)
+        2. Iterates through items, creating Word paragraph for each
+        3. Applies manual prefix (number/bullet) and indentation based on level
+        4. For ordered lists, calculates item number as: idx + start
+        5. Recursively builds nested children lists with increased level
+        6. Returns list of all created paragraphs (flat list, indentation via formatting)
+
+        Example rendering:
+            Ordered list with start=1:
+                ordered=True, start=1, items=[Item("A"), Item("B")]
+                → "1. A"
+                  "2. B"
+
+            Ordered list with start=5:
+                ordered=True, start=5, items=[Item("X"), Item("Y")]
+                → "5. X"
+                  "6. Y"
+
+            Unordered list:
+                ordered=False, items=[Item("A"), Item("B")]
+                → "- A"
+                  "- B"
+
+            Nested list:
+                ordered=True, items=[
+                    Item("Parent", children=[
+                        DocxList(ordered=False, items=[Item("Child")])
+                    ])
+                ]
+                → "1. Parent"
+                  "    - Child"
+
+    Edge Cases:
+        - Empty items (items=[]): Valid but renders as empty list (rare)
+        - Single item: Common, valid for simple lists
+        - start=0: Valid, renders 0., 1., 2., ... (uncommon but allowed)
+        - start>1 with unordered: Valid but start ignored (still renders bullets)
+        - Very large start: Valid, e.g., start=1000 → 1000., 1001., ...
+        - Deep nesting: No hard limit, but readability degrades beyond 3-4 levels
+        - Mixed ordered/unordered nesting: Fully supported and common
+        - List items with empty content: Valid, renders marker with no text
+        - Consecutive lists: Separate DocxList elements (not merged)
+
+    Examples:
+        Simple unordered list (Markdown: - A\\n- B):
+            DocxList(
+                ordered=False,
+                items=[
+                    DocxListItem(content=[TextSpan(text="A")]),
+                    DocxListItem(content=[TextSpan(text="B")]),
+                ],
+                start=1  # Ignored for unordered
+            )
+
+        Simple ordered list (Markdown: 1. First\\n2. Second):
+            DocxList(
+                ordered=True,
+                items=[
+                    DocxListItem(content=[TextSpan(text="First")]),
+                    DocxListItem(content=[TextSpan(text="Second")]),
+                ],
+                start=1
+            )
+
+        Ordered list starting at 5 (Markdown: 5. Item\\n6. Item):
+            DocxList(
+                ordered=True,
+                items=[
+                    DocxListItem(content=[TextSpan(text="Item")]),
+                    DocxListItem(content=[TextSpan(text="Item")]),
+                ],
+                start=5  # First item displays as "5."
+            )
+
+        Nested list (Markdown: 1. Parent\\n   - Child):
+            DocxList(
+                ordered=True,
+                items=[
+                    DocxListItem(
+                        content=[TextSpan(text="Parent")],
+                        children=[
+                            DocxList(
+                                ordered=False,
+                                items=[
+                                    DocxListItem(content=[TextSpan(text="Child")]),
+                                ]
+                            )
+                        ]
+                    )
+                ],
+                start=1
+            )
+
+        Formatted list items (Markdown: 1. **Bold** item):
+            DocxList(
+                ordered=True,
+                items=[
+                    DocxListItem(content=[
+                        TextSpan(text="Bold", bold=True),
+                        TextSpan(text=" item"),
+                    ]),
+                ],
+                start=1
+            )
+
+        Empty list:
+            DocxList(
+                ordered=False,
+                items=[],
+                start=1
+            )
+
+    Usage:
+        DocxList instances are created by DocxRenderer.list() when parsing Markdown
+        list tokens from mistune. The renderer:
+        1. Extracts ordered flag from token.get("attrs", {}).get("ordered", False)
+        2. Extracts start number from token.get("attrs", {}).get("start", 1)
+        3. Iterates through list children, rendering each as DocxListItem
+        4. Returns DocxList with ordered, items, and start populated
+
+        ListBuilder.build() consumes DocxList to create Word list paragraphs:
+        1. Gets appropriate list style based on ordered flag (via StyleMapper)
+        2. Iterates through items with enumerate to track index
+        3. Calls _build_list_item() for each item, passing:
+           - item: The DocxListItem to render
+           - ordered: Boolean for prefix style (number vs bullet)
+           - level: Current nesting depth (for indentation)
+           - style_name: Word style to apply
+           - number: idx + start (for ordered lists)
+        4. Recursively processes nested children lists with level+1
+        5. Returns flat list of all Word paragraphs
+
+    See Also:
+        - DocxListItem: Individual list entries (helper struct, not block element)
+        - TextSpan: Inline formatted text used in list item content
+        - DocxRenderer.list(): Creates DocxList from Markdown tokens
+        - DocxRenderer.list_item(): Creates DocxListItem from Markdown tokens
+        - ListBuilder.build(): Builds Word paragraphs from DocxList with nesting
+        - ListBuilder._build_list_item(): Builds single Word paragraph from item
+        - StyleMapper.list_style(): Maps ordered flag to Word list style name
+    """
 
     ordered: bool
     items: list[DocxListItem]
