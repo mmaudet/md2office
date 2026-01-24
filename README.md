@@ -312,6 +312,7 @@ md2office/
 - [Guide Utilisateur (Français)](docs/README.fr.md) - Documentation complète en français
 - [API Reference](docs/README.md#rest-api) - REST API endpoints
 - [Template Guide](docs/README.md#creating-custom-templates) - Creating custom templates
+- [Error Handling Guide](docs/ERROR_HANDLING.md) - Error handling and exception reference
 
 ## Contributing
 

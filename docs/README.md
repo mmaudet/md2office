@@ -617,6 +617,128 @@ admonitions:
 
 ## Troubleshooting
 
+### Common Errors
+
+#### TemplateError: Template Not Found
+
+**Error Message:**
+```
+TemplateError: Template 'my-template' not found
+```
+
+**Cause:** The specified template doesn't exist in md2office's template directory.
+
+**Solutions:**
+1. List available templates:
+   ```bash
+   md2office templates
+   ```
+2. Use a built-in template (`professional` or `linagora`):
+   ```bash
+   md2office convert document.md -t professional
+   ```
+3. Add your custom template:
+   ```bash
+   md2office template-add my-template.docx --name my-template
+   ```
+
+#### ParserError: Invalid Markdown Syntax
+
+**Error Message:**
+```
+ParserError: Failed to parse Markdown document
+```
+
+**Cause:** The Markdown file contains syntax that cannot be parsed correctly.
+
+**Solutions:**
+1. Check for malformed tables (missing pipes `|` or inconsistent column counts)
+2. Verify admonition syntax: `> [!NOTE]` (must be on separate line)
+3. Ensure code blocks have closing triple backticks
+4. Test with a minimal Markdown file to isolate the issue
+
+**Common parsing issues:**
+- Unmatched table columns: `| A | B |` vs `| X | Y | Z |`
+- Missing newline before admonitions
+- Unclosed inline code: `` `code without closing backtick``
+
+#### BuilderError: DOCX Generation Failed
+
+**Error Message:**
+```
+BuilderError: Failed to build DOCX document
+```
+
+**Cause:** An error occurred while constructing the Word document.
+
+**Solutions:**
+1. Verify the template file is a valid `.docx` file (not corrupted)
+2. Check that template styles referenced in `config/styles-mapping.yaml` exist
+3. Try with a built-in template to rule out template issues
+4. Check for extremely large tables or deeply nested lists
+
+#### ValidationError: Invalid Input
+
+**Error Message:**
+```
+ValidationError: Invalid input parameters
+```
+
+**Cause:** Input validation failed (e.g., invalid file path, missing required variables).
+
+**Solutions:**
+1. Verify input file exists and is readable:
+   ```bash
+   ls -la document.md
+   ```
+2. Check file extension is `.md` or `.markdown`
+3. Ensure all required variables are provided:
+   ```bash
+   md2office convert doc.md -v title="My Title" -v author="John Doe"
+   ```
+
+#### ConfigError: Configuration Invalid
+
+**Error Message:**
+```
+ConfigError: Invalid configuration in styles-mapping.yaml
+```
+
+**Cause:** The configuration file has syntax errors or invalid values.
+
+**Solutions:**
+1. Validate YAML syntax using an online validator
+2. Check for proper indentation (use spaces, not tabs)
+3. Verify color codes are valid hex values (e.g., `"FF0000"`, not `"#FF0000"`)
+4. Restore default configuration:
+   ```bash
+   git checkout config/styles-mapping.yaml
+   ```
+
+#### StorageError: File Access Failed
+
+**Error Message:**
+```
+StorageError: Failed to write output file
+```
+
+**Cause:** Cannot write to the output location (permissions, disk space, locked file).
+
+**Solutions:**
+1. Check write permissions on output directory:
+   ```bash
+   ls -ld /path/to/output/
+   ```
+2. Verify sufficient disk space:
+   ```bash
+   df -h
+   ```
+3. Close the output file if open in Word/LibreOffice
+4. Try writing to a different location:
+   ```bash
+   md2office convert doc.md -o ~/Desktop/output.docx
+   ```
+
 ### Styles Not Applied
 
 **Problem:** Document uses "Normal" instead of expected styles.
