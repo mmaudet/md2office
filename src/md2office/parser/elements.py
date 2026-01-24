@@ -1281,14 +1281,219 @@ class DocxList(DocxElement, frozen=True, tag="list"):
 
 
 class DocxTableCell(msgspec.Struct, frozen=True):
-    """Table cell."""
+    """Table cell with content and merge directives.
+
+    DocxTableCell represents a single cell in a Markdown table, including its text
+    content, header status, and merge instructions for creating colspan/rowspan
+    effects in the final Word document.
+
+    Cell Merging Mechanism:
+        Markdown tables don't natively support merged cells, but extended Markdown
+        parsers use special markers to indicate cell merging:
+        - `^^` marker: Merge this cell with the cell directly above (vertical merge)
+        - `>>` marker: Merge this cell with the cell to the left (horizontal merge)
+
+        These markers are parsed into boolean flags (merge_up, merge_left) that
+        TableBuilder._process_cell_merges() converts to Word cell merges:
+
+        1. **Vertical Merges (merge_up=True)**:
+           - Indicates this cell should merge with the cell above it
+           - TableBuilder scans each column top-to-bottom
+           - When a cell with merge_up=False is followed by cells with merge_up=True,
+             those cells are merged into the first cell using Word's vertical merge
+           - The origin cell retains its content; merged cells are marked as merged
+             and skipped during cell filling
+           - Example:
+               | Header |
+               | Cell 1 |  ← origin cell (merge_up=False)
+               | ^^     |  ← merged cell (merge_up=True)
+               | ^^     |  ← merged cell (merge_up=True)
+             Results in a single cell spanning 3 rows
+
+        2. **Horizontal Merges (merge_left=True)**:
+           - Indicates this cell should merge with the cell to its left
+           - TableBuilder scans each row left-to-right
+           - When a cell with merge_left=False is followed by cells with merge_left=True,
+             those cells are merged into the first cell using Word's horizontal merge
+           - The origin cell retains its content; merged cells are marked and skipped
+           - Example:
+               | Cell 1 | >>     | >>     |
+                 ↑        ↑        ↑
+                 origin   merged   merged
+             Results in a single cell spanning 3 columns
+
+        3. **Two-Pass Merge Processing**:
+           TableBuilder._process_cell_merges() uses a two-pass algorithm:
+           - First pass: Process vertical merges (merge_up) column by column
+           - Second pass: Process horizontal merges (merge_left) row by row
+           - Merged cell positions are tracked in a set to skip during content filling
+           - This order ensures that complex merges (both horizontal and vertical)
+             are handled correctly
+
+        4. **Word Document Integration**:
+           - python-docx Cell.merge() method combines cells in the Word table
+           - For vertical merge: merge(start_cell, end_cell) where cells are in same column
+           - For horizontal merge: merge(start_cell, end_cell) where cells are in same row
+           - Merged cells appear as a single cell in Word with unified borders and content
+           - The content from the origin cell is preserved; merged cell content is ignored
+
+    Relationship to colspan/rowspan Fields:
+        The colspan and rowspan fields are currently present but NOT actively used by
+        TableBuilder. They represent an alternative merging approach:
+        - colspan: Number of columns this cell should span (1 = no span, 2+ = merge right)
+        - rowspan: Number of rows this cell should span (1 = no span, 2+ = merge down)
+
+        Why merge_up/merge_left instead of colspan/rowspan?
+        - Markdown table parsers (like mistune) naturally detect `^^` and `>>` markers
+        - merge_up/merge_left explicitly mark which cells to merge, making the algorithm
+          simpler (scan and merge consecutive merge-marked cells)
+        - colspan/rowspan require tracking span counts and calculating ranges, which is
+          more complex for irregular table structures
+        - Future refactoring may switch to colspan/rowspan and remove merge flags
+
+        Current behavior:
+        - merge_up/merge_left: Actively used by TableBuilder for Word merges
+        - colspan/rowspan: Parsed and stored but ignored during building
+        - Both are preserved in the AST for potential future use
+
+    Attributes:
+        content: List of TextSpan objects representing the cell's formatted text.
+            May be empty for cells that only serve as merge targets or placeholders.
+            Merged cells (merge_up=True or merge_left=True) typically have empty
+            content since they're absorbed into the origin cell.
+        is_header: Whether this cell is a header cell (first row in Markdown tables).
+            Header cells receive special styling (bold, background color, centered text)
+            via table_config in StyleMapper. Note: this is a cell-level flag, though
+            typically the entire first row has is_header=True.
+        colspan: Number of columns this cell spans (default 1). Currently parsed but
+            not used by TableBuilder. Reserved for future colspan/rowspan-based merging.
+        rowspan: Number of rows this cell spans (default 1). Currently parsed but not
+            used by TableBuilder. Reserved for future colspan/rowspan-based merging.
+        merge_up: If True, this cell merges with the cell directly above it (Markdown: ^^).
+            Actively used by TableBuilder._process_cell_merges() for vertical merging.
+            The cell is marked as part of a merged region and its content is ignored.
+            Origin cell (the cell being merged into) has merge_up=False.
+        merge_left: If True, this cell merges with the cell to its left (Markdown: >>).
+            Actively used by TableBuilder._process_cell_merges() for horizontal merging.
+            The cell is marked as part of a merged region and its content is ignored.
+            Origin cell (the cell being merged into) has merge_left=False.
+
+    Merge Processing Algorithm (TableBuilder._process_cell_merges):
+        ```python
+        # Vertical merges: scan each column top to bottom
+        for col_idx in range(num_cols):
+            for row_idx in range(num_rows):
+                cell = table_element.rows[row_idx].cells[col_idx]
+                if not cell.merge_up:
+                    # Count consecutive merge_up cells below
+                    merge_count = 0
+                    for check_row in range(row_idx + 1, num_rows):
+                        if table_element.rows[check_row].cells[col_idx].merge_up:
+                            merge_count += 1
+                        else:
+                            break
+                    # Perform Word merge if any merge_up cells found
+                    if merge_count > 0:
+                        start_cell = table.rows[row_idx].cells[col_idx]
+                        end_cell = table.rows[row_idx + merge_count].cells[col_idx]
+                        start_cell.merge(end_cell)
+
+        # Horizontal merges: scan each row left to right
+        for row_idx in range(num_rows):
+            for col_idx in range(num_cols):
+                cell = table_element.rows[row_idx].cells[col_idx]
+                if not cell.merge_left:
+                    # Count consecutive merge_left cells to the right
+                    merge_count = 0
+                    for check_col in range(col_idx + 1, num_cols):
+                        if table_element.rows[row_idx].cells[check_col].merge_left:
+                            merge_count += 1
+                        else:
+                            break
+                    # Perform Word merge if any merge_left cells found
+                    if merge_count > 0:
+                        start_cell = table.rows[row_idx].cells[col_idx]
+                        end_cell = table.rows[row_idx].cells[col_idx + merge_count]
+                        start_cell.merge(end_cell)
+        ```
+
+    Edge Cases:
+        - Empty content (content=[]): Valid for placeholder cells or cells marked for merging
+        - merge_up on first row: Invalid (no cell above to merge with), parser should prevent
+        - merge_left on first column: Invalid (no cell to the left), parser should prevent
+        - Both merge_up and merge_left True: Unclear semantics, parser should prevent
+        - colspan/rowspan > 1 with merge flags: Conflicting merge directives, parser should prevent
+        - Consecutive origin cells with no merge markers: Normal non-merged cells
+        - Long merge chains: Valid (e.g., 5 cells with merge_up=True merging into one origin)
+
+    Examples:
+        Simple text cell:
+            DocxTableCell(
+                content=[TextSpan(text="Hello")],
+                is_header=False
+            )
+
+        Header cell with formatting:
+            DocxTableCell(
+                content=[TextSpan(text="Name", bold=True)],
+                is_header=True
+            )
+
+        Cell with vertical merge (Markdown: ^^):
+            DocxTableCell(
+                content=[],  # Empty, will be merged into cell above
+                merge_up=True
+            )
+
+        Cell with horizontal merge (Markdown: >>):
+            DocxTableCell(
+                content=[],  # Empty, will be merged into cell to left
+                merge_left=True
+            )
+
+        Origin cell for vertical merge (content is preserved):
+            DocxTableCell(
+                content=[TextSpan(text="Spans multiple rows")],
+                merge_up=False,  # This is the origin cell
+            )
+
+        Empty cell (valid in sparse tables):
+            DocxTableCell(
+                content=[],
+                is_header=False
+            )
+
+    Usage:
+        DocxTableCell instances are created by DocxRenderer._process_table() when
+        parsing Markdown table tokens from mistune. The renderer:
+        1. Iterates through each cell token in the table
+        2. Detects ^^ and >> markers in cell text
+        3. Creates DocxTableCell with appropriate merge flags set
+        4. Sets is_header=True for cells in the first row (if table has header)
+        5. Parses inline formatting into TextSpan list for content
+
+        TableBuilder.build() consumes DocxTableCell to create Word tables:
+        1. Calls _process_cell_merges() to perform vertical and horizontal merges
+        2. Skips merged cells during content filling (tracked in merged_cells set)
+        3. Calls _fill_cell() to add content spans to origin cells only
+        4. Applies header styling (bold, background) if is_header=True
+        5. Results in a Word table with properly merged cells and formatted content
+
+    See Also:
+        - TableBuilder._process_cell_merges(): Implements merge algorithm
+        - TableBuilder._fill_cell(): Populates cell content and applies styling
+        - DocxTableRow: Container for cells in a table row
+        - DocxTable: Container for rows forming a complete table
+        - TextSpan: Formatted text content within cells
+        - StyleMapper.table_config(): Provides header/border/color configuration
+    """
 
     content: list[TextSpan]
     is_header: bool = False
     colspan: int = 1
     rowspan: int = 1
-    merge_up: bool = False  # Indicates cell should merge with cell above (^^)
-    merge_left: bool = False  # Indicates cell should merge with cell to the left (>>)
+    merge_up: bool = False
+    merge_left: bool = False
 
 
 class DocxTableRow(msgspec.Struct, frozen=True):
